@@ -1,3 +1,23 @@
+##############################################
+#### before you run this code, read below ####
+
+# under the heading "run the latest data!" below, update the file to the latest. You can do this by:
+# 1. sign into metabase
+# 2. click on the Activity button in the top right
+# 3. click on "user data export"
+# 4. It should auto-refresh the query. Check this by confirming the date in the field "UAS: Created At" is current.
+# 5. If it is ok, click the down arrow on the right side of the screen and choose .csv. If it is not, click the refresh button and then download.
+# 6. Find the downloaded file and append "UAS_" to the front of the file. Move this to the appropriate working directory.
+# 7. Click on the Activity button again, and choose "cdr-all calls"
+# 8. Confirm the auto-refresh query, and download the results as a .csv.
+# 9. Find the downloaded file and append "CDR_" to the front of the file. Move this to the appropriate working directory.
+
+#You will also need the csvs "vlookupStudentStudyId_international.csv" and "vlookupStudentStudyId_local.csv" for the code to run properly.
+#These will not be shared on github for privacy reasons. Contact me for them if you need them.
+
+###############
+#### setup ####
+
 library(tidyverse)
 library(dplyr)
 library(anytime)
@@ -6,19 +26,17 @@ library(DT)
 library(chron)
 library(lubridate)
 library(openxlsx)
-library(lme4)
-library(lmerTest)
-library(agricolae)
-library(bsselectR)
-#library(learningCurve)
+#library(lme4)
+#library(lmerTest)
+#library(agricolae)
+#library(bsselectR)
 
-###############
-#### setup ####
 
 #mac environment
 setwd("~/Documents/IvoryCoast/data/")
 
-CIVdata = read.csv(file = "UAS_query_result_2018-11-30T13_01_37.671Z.csv")
+# run the latest data!
+CIVdata = read.csv(file = "UAS_query_result_2018-11-30T22_49_52.923Z.csv")
 cdrData = read.csv(file = "CDR_query_result_2018-11-19T16_40_56.492Z.csv")
 
 #merge in student study id
@@ -31,39 +49,51 @@ suppressWarnings(CIVdata <- CIVdata %>%
                    left_join(vlookupStudentStudyId_international, by = c("users.mobile_number")))
 
 #create filter for study ID binary (will be filter later)
-CIVdata$inMichelsList = ifelse(is.na(CIVdata$studentStudyId), 0, 1)
+#convert current unit to binary
+
+##There are duplicate values but there is not a simple fix. Part of the fix below.
+# CIVdata = CIVdata %>%
+#   mutate(inMichelsList = ifelse(is.na(CIVdata$studentStudyId), 0, 1),
+#          usersToUnits.currentUnit = ifelse(usersToUnits.current == "true", 1, 0),
+#          deleteDuplicateRow = ifelse((UAS.id == lead(UAS.id) &
+#                                       usersToUnits.currentUnit == 0 &
+#                                       lead(usersToUnits.currentUnit) == 1),1, 0)) %>%
+#   #filter(deleteDuplicateRow == 0,
+#   #       studentStudyId == 15) %>%
+#   mutate(check = ifelse(UAS.id == lag(UAS.id),"ERROR",""))
+#          
 
 #merge in IPA
-cmsToken_table <- read.xlsx('cms_tokens_2018-11-24.xlsx', 'tokens')
-cmsToken_table = cmsToken_table %>%
-  select(id, phonetics_auditory, spelling_visual, syllable_structure, token_type_id)
+#cmsToken_table <- read.xlsx('cms_tokens_2018-11-24.xlsx', 'tokens')
+#cmsToken_table = cmsToken_table %>%
+#  select(id, phonetics_auditory, spelling_visual, syllable_structure, token_type_id)
 
 #for token a
-colnames(cmsToken_table)[1] <- "cmsQuestions.token_a_id"
-colnames(cmsToken_table)[2] <- "phonetics_auditory_token_a"
-colnames(cmsToken_table)[3] <- "spelling_visual_token_a"
-colnames(cmsToken_table)[4] <- "syllable_structure_token_a"
-colnames(cmsToken_table)[5] <- "token_type_id_token_a"
-suppressWarnings(CIVdata <- CIVdata %>%
-                   left_join(cmsToken_table, by = c("cmsQuestions.token_a_id")))
-
-#for token b
-colnames(cmsToken_table)[1] <- "cmsQuestions.token_b_id"
-colnames(cmsToken_table)[2] <- "phonetics_auditory_token_b"
-colnames(cmsToken_table)[3] <- "spelling_visual_token_b"
-colnames(cmsToken_table)[4] <- "syllable_structure_token_b"
-colnames(cmsToken_table)[5] <- "token_type_id_token_b"
-suppressWarnings(CIVdata <- CIVdata %>%
-                   left_join(cmsToken_table, by = c("cmsQuestions.token_b_id")))
-
-#for token c
-colnames(cmsToken_table)[1] <- "cmsQuestions.token_c_id"
-colnames(cmsToken_table)[2] <- "phonetics_auditory_token_c"
-colnames(cmsToken_table)[3] <- "spelling_visual_token_c"
-colnames(cmsToken_table)[4] <- "syllable_structure_token_c"
-colnames(cmsToken_table)[5] <- "token_type_id_token_c"
-suppressWarnings(CIVdata <- CIVdata %>%
-                   left_join(cmsToken_table, by = c("cmsQuestions.token_c_id")))
+# colnames(cmsToken_table)[1] <- "cmsQuestions.token_a_id"
+# colnames(cmsToken_table)[2] <- "phonetics_auditory_token_a"
+# colnames(cmsToken_table)[3] <- "spelling_visual_token_a"
+# colnames(cmsToken_table)[4] <- "syllable_structure_token_a"
+# colnames(cmsToken_table)[5] <- "token_type_id_token_a"
+# suppressWarnings(CIVdata <- CIVdata %>%
+#                    left_join(cmsToken_table, by = c("cmsQuestions.token_a_id")))
+# 
+# #for token b
+# colnames(cmsToken_table)[1] <- "cmsQuestions.token_b_id"
+# colnames(cmsToken_table)[2] <- "phonetics_auditory_token_b"
+# colnames(cmsToken_table)[3] <- "spelling_visual_token_b"
+# colnames(cmsToken_table)[4] <- "syllable_structure_token_b"
+# colnames(cmsToken_table)[5] <- "token_type_id_token_b"
+# suppressWarnings(CIVdata <- CIVdata %>%
+#                    left_join(cmsToken_table, by = c("cmsQuestions.token_b_id")))
+# 
+# #for token c
+# colnames(cmsToken_table)[1] <- "cmsQuestions.token_c_id"
+# colnames(cmsToken_table)[2] <- "phonetics_auditory_token_c"
+# colnames(cmsToken_table)[3] <- "spelling_visual_token_c"
+# colnames(cmsToken_table)[4] <- "syllable_structure_token_c"
+# colnames(cmsToken_table)[5] <- "token_type_id_token_c"
+# suppressWarnings(CIVdata <- CIVdata %>%
+#                    left_join(cmsToken_table, by = c("cmsQuestions.token_c_id")))
 
 #extract date from weird metabase timestamp
 CIVdata$date <- as.Date(substr(CIVdata$UAS.created_at, 1, 10))
@@ -149,11 +179,6 @@ CIVdata_filter = CIVdata_filter %>%
   mutate(cmsQuestions.distractor_tokens_V02 = ifelse(is.na(cmsQuestions.token_c_id), "null", paste(cmsQuestions.token_b_id,", ",cmsQuestions.token_c_id, sep = "")),
          cmsQuestions.distractor_tokens_IPA = ifelse(is.na(cmsQuestions.token_c_id), "null", paste(phonetics_auditory_token_b,", ",phonetics_auditory_token_c, sep = "")),
          cmsQuestions.distractor_tokens_spelling = ifelse(is.na(cmsQuestions.token_c_id), "null", paste(spelling_visual_token_b,", ",spelling_visual_token_c, sep = "")))
-
-
-#convert current unit to binary
-CIVdata_filter = CIVdata_filter %>%
-  mutate(usersToUnits.currentUnit = ifelse(usersToUnits.current == "true", 1, 0))
 
 CIVdata_filter$usersToUnits.currentUnit = as.character(CIVdata_filter$usersToUnits.currentUnit)
 
@@ -325,3 +350,4 @@ cdrData_filter_IVRCall = cdrData %>%
   #filter(shortCall == "0") %>%
   group_by(studentStudyId) %>%
   mutate(callNumber = cumsum(inMichelsList))
+

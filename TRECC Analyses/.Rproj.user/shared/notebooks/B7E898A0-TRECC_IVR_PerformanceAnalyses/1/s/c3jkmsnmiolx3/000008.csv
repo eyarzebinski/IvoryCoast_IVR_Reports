@@ -1,0 +1,5 @@
+"0","#hist(CIVdata_filter.tokenid$LastAcc)"
+"0","# Low accuracy last-attempts tokens:"
+"0","# When there are at least 5 presentations to average across, and accuracy is near or below chance"
+"0","# Even some greater-than-chance results included, because they should be learnable by 3rd attempt"
+"0","datatable(CIVdata_filter.tokenid[CIVdata_filter.tokenid$zLastAcc<=1 & CIVdata_filter.tokenid$presentations>=5,])"

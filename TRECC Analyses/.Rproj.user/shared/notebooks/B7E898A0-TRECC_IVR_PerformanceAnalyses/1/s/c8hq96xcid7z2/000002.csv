@@ -1,0 +1,3 @@
+"0","message(paste(""Currently across all tokens:"",nrow(tokenDistribution_A),""unique token As,"",nrow(tokenDistribution_B), ""unique token Bs, and"",nrow(tokenDistribution_C),""unique token Cs have been used in at least one question. There are"",nrow(tokenDistribution_distractorBC),""unique combinations of Tokens B and C.""))"
+"2","Currently across all tokens: 551 unique token As, 580 unique token Bs, and 555 unique token Cs have been used in at least one question. There are 1503 unique combinations of Tokens B and C.
+"

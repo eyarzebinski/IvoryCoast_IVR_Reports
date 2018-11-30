@@ -1,0 +1,5 @@
+"0","Qcount_day$UAS.unit_id = as.character(Qcount_day$UAS.unit_id)"
+"0","ggplot(data=Qcount_day,aes(x=date,y=studentStudyId,group=studentStudyId, color=UAS.unit_id)) + "
+"0","  geom_path() +"
+"0","  geom_point() +"
+"0","  scale_color_manual(values=c(""gray50"",""olivedrab3"",""darkgoldenrod1"",""firebrick1""))"

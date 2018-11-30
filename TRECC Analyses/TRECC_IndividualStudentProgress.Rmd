@@ -1,0 +1,73 @@
+---
+title: "TRECC Individual Student Progress"
+author: "Evelyn Yarzebinski"
+date: "11/29/2018"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+###Report Generation Time
+```{r report time, echo = F}
+message(paste0("report generated: ",Sys.time()))
+
+```
+
+```{r student question performance per unit per day table, include = F}
+#questions and performance per student per unit per day
+source("TRECC_dataPrep.R")
+
+Qcount_day = CIVdata_filter %>%
+  group_by(studentStudyId, UAS.unit_id,date) %>%
+  summarize(uniqueQuestions = n_distinct(cmsQuestions.question_text),
+            uniqueLessons = n_distinct(UAS.lesson_id),
+            avgAttemptOfCorrectAnswer = round(mean(attemptNumber),2),
+            sdAttemptOfCorrectAnswer = round(sd(attemptNumber),2),
+            avgCorrectnessOfQuestionAttempts = round(mean(UAS.correct),2))
+
+#datatable(Qcount_day)
+```
+
+###Plot of student current progress in unit
+####This shows the units that each student is currently in (eg the "1" is unit 1). A single student only appears in one of the plots below depending on what their current unit is. A student with a blue/green dot has passed the threshold for promotion for the next unit (50% mastery on 16+ questions) and probably will receive the next unit's content the next time they call. A student with a red dot is below the threshold for promotion and will stay in the same unit the next time they call.
+```{r plot of current progress 2, echo=F}
+
+#Qcount_day_filter = Qcount_day %>%
+# filter(studentStudyId == 2)
+
+Qcount_day$UAS.unit_id = as.character(Qcount_day$UAS.unit_id)
+
+users <- unique(as.character(Qcount_day$studentStudyId))
+users <- users[!is.na(users)]
+
+plots <- lapply(users, function(x) {
+  
+  user = filter(Qcount_day, studentStudyId == x)
+  
+  p <- ggplot(data=user,aes(x=date,y=avgCorrectnessOfQuestionAttempts,color = UAS.unit_id)) +
+    geom_point() +
+    #facet_wrap(~ studentStudyId, ncol = 10)
+    scale_y_continuous(limits = c(0, 1)) +
+    scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1","firebrick1"))
+  
+  p
+  
+})
+
+paths <- paste0(users, ".png")
+
+#setwd("~/Box Sync/Ivory Coast/TRECC Analyses")
+
+#pwalk(list(paths, plots), ggsave, path = "C:/Users/Evelyn/Box Sync/Ivory Coast/TRECC Analyses/plots", dpi = 300)
+pwalk(list(paths, plots), ggsave, path = "~/Box Sync/Ivory Coast/TRECC Analyses/plots", dpi = 200)
+
+
+Qcount_day_plots <- paste0(list.files("plots", full.names = TRUE))
+names(Qcount_day_plots) <- str_replace_all(Qcount_day_plots,
+                                           c("\\.png" = "",
+                                             "plots/" = ""))
+
+bsselect(Qcount_day_plots, type = "img", selected = "2",
+         live_search = TRUE, show_tick = TRUE)
+
+```

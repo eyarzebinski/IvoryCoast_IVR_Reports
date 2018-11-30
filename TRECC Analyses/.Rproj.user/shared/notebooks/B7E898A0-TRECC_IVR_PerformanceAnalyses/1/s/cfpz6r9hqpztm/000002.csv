@@ -1,0 +1,6 @@
+"0","CIVdata_filter.tokenid$token_type_id_token_a = as.factor(CIVdata_filter.tokenid$token_type_id_token_a)
+"
+"2","Unknown or uninitialised column: 'token_type_id_token_a'."
+"2","Error in `$<-.data.frame`(`*tmp*`, token_type_id_token_a, value = integer(0)) : 
+  replacement has 0 rows, data has 551
+"

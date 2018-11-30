@@ -1,0 +1,4 @@
+"0","#hist(CIVdata_filter.tokenid$FirstAcc)"
+"0","# Low accuracy first-attempts: "
+"0","# When there are at least 5 presentations to average across, and accuracy is equal to or below chance"
+"0","datatable(CIVdata_filter.tokenid[CIVdata_filter.tokenid$zFirstAcc<=0 & CIVdata_filter.tokenid$presentations>=5,])"

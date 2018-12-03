@@ -31,12 +31,13 @@ library(openxlsx)
 #library(agricolae)
 #library(bsselectR)
 
-
+#data cannot go on github due to sensitive user information
+#store it somewhere else local on your machine and call it
 #mac environment
 setwd("~/Documents/IvoryCoast/data/")
 
 # run the latest data!
-CIVdata = read.csv(file = "UAS_query_result_2018-11-30T22_49_52.923Z.csv")
+CIVdata = read.csv(file = "UAS_query_result_2018-12-03T16_43_31.243Z.csv")
 cdrData = read.csv(file = "CDR_query_result_2018-11-19T16_40_56.492Z.csv")
 
 #merge in student study id
@@ -50,18 +51,11 @@ suppressWarnings(CIVdata <- CIVdata %>%
 
 #create filter for study ID binary (will be filter later)
 #convert current unit to binary
-
-##There are duplicate values but there is not a simple fix. Part of the fix below.
-# CIVdata = CIVdata %>%
-#   mutate(inMichelsList = ifelse(is.na(CIVdata$studentStudyId), 0, 1),
-#          usersToUnits.currentUnit = ifelse(usersToUnits.current == "true", 1, 0),
-#          deleteDuplicateRow = ifelse((UAS.id == lead(UAS.id) &
-#                                       usersToUnits.currentUnit == 0 &
-#                                       lead(usersToUnits.currentUnit) == 1),1, 0)) %>%
-#   #filter(deleteDuplicateRow == 0,
-#   #       studentStudyId == 15) %>%
-#   mutate(check = ifelse(UAS.id == lag(UAS.id),"ERROR",""))
-#          
+##There are duplicate values but there is not a simple fix for the pilot data. Part of the fix below.
+CIVdata = CIVdata %>%
+  mutate(
+    inMichelsList = ifelse(is.na(CIVdata$studentStudyId), 0, 1)
+  )
 
 #merge in IPA
 #cmsToken_table <- read.xlsx('cms_tokens_2018-11-24.xlsx', 'tokens')

@@ -135,9 +135,14 @@ datatable(CIVdata_filter.trialid)
 
 ###Comparing student performance across quartile splits on given unit/question types
 ####Ideally, there should be a discernible difference between Q1 and Q4 in each graph. If there is not, it may indicate question difficulty, technical difficulty, student unreadiness, etc.
+####The plot shows the quartile split of all questions a student receives (x axis) by the average % correct on that quartile of questions (y axis). Each combination of a unit and question in its own plot (each plot's title corresponds to "Unit#_Question#"). From Quartile 1 to Quartile 4, we would hope to see the students performing better.
+
+
+####{.tabset} 
+#####Table
 ```{r performance first lesson vs current lesson, echo = F}
 performanceFirstLessonToCurrent = CIVdata_filter %>%
-  group_by(studentStudyId, UAS.unit_id, usersToUnits.currentUnit, cmsQuestions.question_number) %>%
+  group_by(studentStudyId, UAS.unit_id, cmsQuestions.question_number) %>%
   mutate(questionAndUnit_concat = paste0(UAS.unit_id, "_",cmsQuestions.question_number),
          questionMax = max(questionNumberPerUnit),
          questionQuartile = questionNumberPerUnit / questionMax,
@@ -159,8 +164,7 @@ performanceFirstLessonToCurrent = CIVdata_filter %>%
 datatable(performanceFirstLessonToCurrent)
 ```
 
-####The plot shows the quartile split of all questions a student receives (x axis) by the average % correct on that quartile of questions (y axis). Each combination of a unit and question in its own plot (each plot's title corresponds to "Unit#_Question#"). From Quartile 1 to Quartile 4, we would hope to see the students performing better.
-
+#####Plot
 ```{r, echo=F}
  performanceFirstLessonToCurrent %>%
  ggplot(aes(x = questionQuartileGroup, y = avgCorrectPercent)) +
@@ -255,6 +259,10 @@ message(paste("Currently across all tokens:",nrow(tokenDistribution_A),"unique t
 
 ### Which tokens are most frequently presented?
 ####The histogram indicates the number of times tokens were presented, e.g. the first bar indicates that ~17 unique tokens were produced a total of 1 time to students.
+####High Frequency tokens, based on standard deviation of selection rates). Low frequency tokens don't appear in the data since zero-frequency tokens are by default excluded.
+
+####{.tabset}
+#####Plot
 ```{r, echo = F}
 
 CIVdata_filter.tokenid %>%
@@ -271,7 +279,7 @@ tweight.sd <- round(sd(CIVdata_filter.tokenid$presentations),2)
 #CIVdata_filter.tokenid[CIVdata_filter.tokenid$presentations < tweight.mean-2*tweight.sd,]
 ```
 
-####High Frequency tokens displayed (based on standard deviation of selection rates). Low frequency tokens don't appear in the data since zero-freuqncy tokens are by default excluded.
+#####Table
 ```{r, echo = F}
 # High frequency tokens
 datatable(CIVdata_filter.tokenid[CIVdata_filter.tokenid$presentations > tweight.mean+2*tweight.sd,])
@@ -280,11 +288,16 @@ datatable(CIVdata_filter.tokenid[CIVdata_filter.tokenid$presentations > tweight.
 
 ###Which tokens have low accuracy in first and last attempts?
 ####Low accuracy on first attempts
+####{.tabset}
+#####Plot
 ```{r, echo = F}
 CIVdata_filter.tokenid %>%
   ggplot(aes(x = FirstAcc)) +
   geom_histogram(binwidth = .1 )
+```
 
+#####Table
+```{r}
 #hist(CIVdata_filter.tokenid$FirstAcc)
 # Low accuracy first-attempts: 
 # When there are at least 5 presentations to average across, and accuracy is equal to or below chance
@@ -292,12 +305,16 @@ datatable(CIVdata_filter.tokenid[CIVdata_filter.tokenid$zFirstAcc<=0 & CIVdata_f
 ```
 
 ####Low accuracy on last attempts
+####{.tabset}
+#####Plot
 ```{r, echo = F}
-
 CIVdata_filter.tokenid %>%
   ggplot(aes(x = LastAcc)) +
   geom_histogram(binwidth = .1 )
+```
 
+#####Table
+```{r}
 #hist(CIVdata_filter.tokenid$LastAcc)
 # Low accuracy last-attempts tokens:
 # When there are at least 5 presentations to average across, and accuracy is near or below chance
@@ -344,15 +361,18 @@ datatable(CIVdata_filter.syllable)
 ```
 
 ###Does syllable structure significantly affect the token difficulty?
-####List the current syllables
+####These are the syllables that have appeared in questions so far
+####The percent under each syllable structure indicates the percent of the attempts that include that structure.
 ```{r, echo = F}
 CIVdata_filter.tokenid$token_a_syllable_structure = as.factor(CIVdata_filter.tokenid$token_a_syllable_structure)
 CIVdata_filter.tokenid$token_a_syllable_structure <- relevel(CIVdata_filter.tokenid$token_a_syllable_structure,'CVC')
-unique(CIVdata_filter.tokenid$token_a_syllable_structure)
+#unique(CIVdata_filter.tokenid$token_a_syllable_structure)
+round(prop.table(table(CIVdata_filter.tokenid$token_a_syllable_structure)),2)
+
 ```
 
-
-####There is no significant difference in syllable_structure and first attempt accuracy
+####{.tabset}
+#####First attempt
 ```{r, echo = F}
 # Perform ANOVA to determine whether syllable structures significantly differ from each other in first-attempt accuracy
 syllable_effect_zF <- lm(zFirstAcc~token_a_syllable_structure,CIVdata_filter.tokenid,weight=CIVdata_filter.tokenid$presentations)
@@ -360,7 +380,7 @@ syllable_effect_zF <- lm(zFirstAcc~token_a_syllable_structure,CIVdata_filter.tok
 anova(syllable_effect_zF)
 ```
 
-####There is a significant difference in syllable_structure and last attempt accuracy
+#####Last attempt
 ```{r, echo = F}
 # Perform ANOVA to determine whether syllable structures significantly differ from each other in last-attempt accuracy
 syllable_effect_zL <- lm(zLastAcc~token_a_syllable_structure,CIVdata_filter.tokenid,weight=CIVdata_filter.tokenid$presentations)

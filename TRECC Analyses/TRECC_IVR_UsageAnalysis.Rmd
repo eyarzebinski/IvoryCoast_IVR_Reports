@@ -47,7 +47,7 @@ write.csv(CIVdata_filter,paste("~/Documents/IvoryCoast/data/CIVData_currentDataT
 Qcount_unit = CIVdata_filter %>%
   group_by(studentStudyId, UAS.unit_id) %>%
   summarize(uniqueQuestions = n_distinct(cmsQuestions.question_text),
-            maxQuestions = max(questionNumberPerUnit),
+            maxQuestionsPerUnit = max(questionNumberPerUnit),
             daysCalledIVR = n_distinct(date),
             avgCorrectnessOfQuestionAttempts = round(mean(UAS.correct),2))
 

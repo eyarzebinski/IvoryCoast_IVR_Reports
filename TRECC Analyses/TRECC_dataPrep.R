@@ -117,7 +117,7 @@ CIVdata = dplyr::arrange(CIVdata, studentStudyId, dateTime)
 ###############################################################################################################
 #### create CIVdata_filter and take out all non-study IDs and dates, also exclude student 30 (the teacher) ####
 CIVdata_filter = CIVdata %>%
-  filter(interventionDateRange == 1, inMichelsList == 1, studentStudyId != 30, studentStudyId != 1)
+  filter(interventionDateRange == 1, inMichelsList == 1, studentStudyId != 30, studentStudyId != 38, studentStudyId != 1)
 
 #extract elapsed time (sec) per lesson since last line
 
@@ -174,7 +174,8 @@ CIVdata_filter = CIVdata_filter %>%
          cmsQuestions.distractor_tokens_IPA = ifelse(is.na(cmsQuestions.token_c_id), "null", paste(phonetics_auditory_token_b,", ",phonetics_auditory_token_c, sep = "")),
          cmsQuestions.distractor_tokens_spelling = ifelse(is.na(cmsQuestions.token_c_id), "null", paste(spelling_visual_token_b,", ",spelling_visual_token_c, sep = "")))
 
-CIVdata_filter$usersToUnits.currentUnit = as.character(CIVdata_filter$usersToUnits.currentUnit)
+CIVdata_filter$usersToUnits.currentUnit = as.character(CIVdata_filter$usersToUnits.current)
+CIVdata_filter$usersToUnits.current = NULL
 
 ######################################################################################################
 #### Summarize multiple-attempts down into one row with First-attempt and Last-attempt accuracies ####

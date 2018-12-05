@@ -13,6 +13,24 @@ rm(list=ls())
 gc(verbose=TRUE)
 
 source("TRECC_dataPrep.R")
+
+knitr::knit_hooks$set(
+   error = function(x, options) {
+     paste('\n\n<div class="alert alert-danger">',
+           gsub('##', '\n', gsub('^##\ Error', '**Error**', x)),
+           '</div>', sep = '\n')
+   },
+   warning = function(x, options) {
+     paste('\n\n<div class="alert alert-warning">',
+           gsub('##', '\n', gsub('^##\ Warning:', '**Warning**', x)),
+           '</div>', sep = '\n')
+   },
+   message = function(x, options) {
+     paste('\n\n<div class="alert alert-info">',
+           gsub('##', '\n', x),
+           '</div>', sep = '\n')
+   }
+)
 ```
 
 ###Report Generation Time
@@ -35,7 +53,7 @@ message(paste("CDR data ranges from ", CDR_minDate, " to ", CDR_maxDate,". The s
 ```
 
 ```{r saving, include=F}
-write.csv(CIVdata_filter,paste("~/Documents/IvoryCoast/data/CIVData_currentDataThrough_",UAS_maxDate,".csv",sep=""),row.names = FALSE)
+#write.csv(CIVdata_filter,paste("~/Documents/IvoryCoast/data/CIVData_currentDataThrough_",UAS_maxDate,".csv",sep=""),row.names = FALSE)
 #write.xlsx(CIVdata_filter,paste("~/Documents/IvoryCoast/data/CIVData_currentDataThrough_",UAS_maxDate,".xlsx",sep=""),row.names = FALSE)
 #write.csv(cdrData_filter,paste0("~/Documents/IvoryCoast/data/cdrData_currentDataThrough_",CDR_maxDate,".csv"),row.names = FALSE)
 #write.xlsx(cdrData_filter,paste("~/Documents/IvoryCoast/data/cdrData_currentDataThrough_",CDR_maxDate,".xlsx",sep=""),row.names = FALSE)
@@ -45,19 +63,20 @@ write.csv(CIVdata_filter,paste("~/Documents/IvoryCoast/data/CIVData_currentDataT
 ```{r student unit performance table, echo = F}
 #perfomance per student per unit
 Qcount_unit = CIVdata_filter %>%
-  group_by(studentStudyId, UAS.unit_id) %>%
+  group_by(studentStudyId, UAS.unit_id, artificialPromotion = receivedArtificialPromotionOutOfCurrentUnit) %>%
   summarize(uniqueQuestions = n_distinct(cmsQuestions.question_text),
             maxQuestionsPerUnit = max(questionNumberPerUnit),
             daysCalledIVR = n_distinct(date),
             avgCorrectnessOfQuestionAttempts = round(mean(UAS.correct),2))
 
-Qcount_unit_currentUnit = Qcount_unit %>%
+Qcount_unit_ = Qcount_unit %>%
   group_by(studentStudyId) %>%
   summarize(currentUnit = max(UAS.unit_id))
 
 datatable(Qcount_unit)
 
 ```
+
 
 ###Plot of student current progress in unit
 ####The scatterplot hows the units that each student is currently in (eg the "1" is unit 1). A student with a red dot has passed the threshold for promotion (50% mastery on 16+ questions) and will receive the next unit's content on their next call. A student with a grey dot is below the threshold for promotion and will receive the current unit's content the next time they call.
@@ -201,7 +220,7 @@ datatable(AvgTimeLesson_Agg)
 <!-- ``` -->
 ###When do students start calls, based on the CDR table?
 ####During April and May 2018 interviews with Michael and Amy, parents said that the ideal time for the IVR call was between 17h - 19h, after the children are home from school, eaten dinner, and finished their chores. We see that most of the calls come during this time, but a number of calls come in the morning and afternoon as well!
-####The single histogram indicates - across all study days - the raw hour of the day when the IVR calls the student (based on Michel's IVR CDR call logs)
+####The single histogram indicates - across all study days - the raw hour of the day when the IVR calls the student (based on Michel's IVR CDR call logs).
 ####The multiple histograms indicate - per each study day - the raw hour of the day when the IVR calls the student (based on Michel's IVR CDR call logs). Phone training on 10/24 was a Wednesday. Since there are 7 graphs in each row, this means that the first column of graphs represents each Wednesday in a given week. Columns 4 and 5 represent all Saturdays and Sundays, respectively.
 ###{.tabset}
 
@@ -256,53 +275,58 @@ avgCallTime %>%
 ```
 
 
-<!-- ##3. Promotion Analysis -->
+##3. Promotion Analysis
 
-<!-- ###Question Progress For Promotion -->
-<!-- ####This analysis is only for students who were promoted into subsequent units based on their performance. Students who never passed Unit 1 are excluded from this analysis. -->
-
-<!-- ####How many questions did a student have to answer in the PRIOR unit until they achieved a high enough mastery score that allowed them to go to the next unit? You can read the table as "To be promoted into Unit 2, 12 students answered an average of 89 unique questions in Unit 1, ranging from a minimum of 15 to a maximum of 272." Or, "To be promoted into Unit 3, 8 students answered an average of 133 questions in Unit 2." -->
+###Question Progress For Promotion
+####How many questions did a student have to answer in a given unit until they achieved the promotion threshold?
+####This analysis is only for students who were promoted into subsequent units based on their performance. Students who never passed Unit 1 are excluded from this analysis. Students who were manually promoted into later units have the manually promoted unit and the prior unit filtered out. For example, if a student achieved the promotion threshold for unit 1 and unit 2 on their own, and then while they were in the middle of unit 3 were promoted to unit 4, I would filter out unit 3 and unit 4, but keep unit 1 and unit 2.
 
 <!-- ###{.tabset} -->
 
 <!-- ####Aggregate Table -->
-<!-- ```{r, echo = F} -->
-<!-- promotionQuestions = Qcount_unit %>% -->
-<!--   filter(studentStudyId != 15, studentStudyId != 33, studentStudyId != 38) %>% -->
-<!--   mutate(questionsAnsweredForPromotion = ifelse(studentStudyId == lag(studentStudyId), lag(uniqueQuestions),NA)) %>% -->
-<!--   filter(UAS.unit_id != 1) -->
+<!-- # ```{r, echo = F} -->
+<!-- # promotionQuestions = Qcount_unit %>% -->
+<!-- #   ungroup() %>% -->
+<!-- #   filter(artificialPromotion == 0, studentStudyId != 15, studentStudyId != 33, studentStudyId != 38) %>% -->
+<!-- #   mutate(questionsAnsweredInCurrentUnitBeforePromotion = ifelse(studentStudyId == lead(studentStudyId), uniqueQuestions,NA), -->
+<!-- #          daysCalledInCurrentUnitBeforePromotion = ifelse(studentStudyId == lead(studentStudyId), daysCalledIVR,NA)) %>% -->
+<!-- #   filter(UAS.unit_id != 1) %>% -->
+<!-- #   mutate(UAS.unit_id = UAS.unit_id-1) -->
+<!-- #  -->
+<!-- # promotionQuestions_table = promotionQuestions %>% -->
+<!-- #   group_by(UAS.unit_id) %>% -->
+<!-- #   summarize(nStudentsPromoted = n_distinct(studentStudyId), -->
+<!-- #             avg_DaysBeforePromotionToCurrentUnit = round(mean(daysCalledInCurrentUnitBeforePromotion),2), -->
+<!-- #             sd_DaysBeforePromotionToCurrentUnit = round(sd(daysCalledInCurrentUnitBeforePromotion),2), -->
+<!-- #             avgQ_ForPromotionToCurrentUnit = round(mean(questionsAnsweredInCurrentUnitBeforePromotion),2), -->
+<!-- #             sdQ_ForPromotionToCurrentUnit = round(sd(questionsAnsweredInCurrentUnitBeforePromotion),2), -->
+<!-- #             minQ_ForPromotionToCurrentUnit = min(questionsAnsweredInCurrentUnitBeforePromotion), -->
+<!-- #             maxQ_ForPromotionToCurrentUnit = max(questionsAnsweredInCurrentUnitBeforePromotion)) -->
+<!-- #  -->
+<!-- # #datatable(promotionQuestions_table) -->
+<!-- # ``` -->
 
-<!-- promotionQuestions_table = promotionQuestions %>% -->
-<!--   group_by(UAS.unit_id) %>% -->
-<!--   summarize(nStudentsPromoted = n_distinct(studentStudyId), -->
-<!--             avgQ_ForPromotionToCurrentUnit = round(mean(questionsAnsweredForPromotion),2), -->
-<!--             sdQ_ForPromotionToCurrentUnit = round(sd(questionsAnsweredForPromotion),2), -->
-<!--             minQ_ForPromotionToCurrentUnit = min(questionsAnsweredForPromotion), -->
-<!--             maxQ_ForPromotionToCurrentUnit = max(questionsAnsweredForPromotion)) -->
-
-<!-- datatable(promotionQuestions_table) -->
-<!-- ``` -->
 
 <!-- ####Scatterplot -->
 <!-- ```{r, echo = F} -->
 <!-- promotionQuestions$UAS.unit_id = as.character(promotionQuestions$UAS.unit_id) -->
 
 <!-- promotionQuestions %>% -->
-<!--   ggplot(aes(x=daysCalledIVR,y=questionsAnsweredForPromotion, color=UAS.unit_id)) +  -->
+<!--   ggplot(aes(x=daysCalledIVR,y=questionsAnsweredInCurrentUnitBeforePromotion, color=UAS.unit_id)) + -->
 <!--   geom_point() + -->
-<!--   scale_color_manual(values=c("olivedrab3","darkgoldenrod1","firebrick1")) -->
+<!--   scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1")) -->
 
 <!-- ``` -->
 
 <!-- ####Student Table -->
 <!-- ```{r, echo = F} -->
 <!-- datatable(promotionQuestions) -->
-
 <!-- ``` -->
 
-<!-- <!-- # ```{r, include = F} --> -->
+
+<!-- # ```{r, include = F} -->
 <!-- # promotionQuestions_csv = promotionQuestions %>% -->
 <!-- #   select(studentStudyId, UAS.unit_id) -->
-<!-- #  -->
-<!-- # write.csv(promotionQuestions_csv, "promotionStudents.csv", row.names = F) -->
 <!-- # ``` -->
+
+

@@ -19,7 +19,7 @@
 #### setup ####
 
 library(tidyverse)
-library(dplyr)
+#library(dplyr)
 library(anytime)
 library(jsonlite)
 library(DT)
@@ -37,7 +37,7 @@ library(openxlsx)
 setwd("~/Documents/IvoryCoast/data/")
 
 # run the latest data!
-CIVdata = read.csv(file = "UAS_query_result_2018-12-03T16_43_31.243Z.csv")
+CIVdata = read.csv(file = "UAS_query_result_2018-12-05T15_31_49.056Z.csv")
 cdrData = read.csv(file = "CDR_query_result_2018-11-19T16_40_56.492Z.csv")
 
 #merge in student study id
@@ -163,7 +163,10 @@ CIVdata_filter = CIVdata_filter %>%
   mutate(lessonNumberPerUnit = cumsum(changeLesson)) %>%
   ungroup() %>%
   group_by(studentStudyId, lessonNumberOverall) %>%
-  mutate(questionNumberPerLesson = cumsum(changeQuestion))
+  mutate(questionNumberPerLesson = cumsum(changeQuestion)) %>%
+  ungroup() %>%
+  group_by(studentStudyId, cmsQuestions.trial_id) %>%
+  mutate(questionNumberPerTrialId = cumsum(changeQuestion))
 
 
 #make V02 of co-occurring distractor token id (fix issue of "[" and "]" appearing only for units 3 and 4)
@@ -177,8 +180,26 @@ CIVdata_filter = CIVdata_filter %>%
 CIVdata_filter$usersToUnits.currentUnit = as.character(CIVdata_filter$usersToUnits.current)
 CIVdata_filter$usersToUnits.current = NULL
 
+
+#merge the promotionType file
+CIVdata_filter = CIVdata_filter %>%
+  mutate(userUnit = paste(studentStudyId,"_",UAS.unit_id,sep=""))
+
+CIVdata_filter = CIVdata_filter %>%
+  mutate(unitTrial = paste(UAS.unit_id,"_",cmsQuestions.trial_id,sep=""))
+
+CIVdata_filter$unitTrial = as.factor(CIVdata_filter$unitTrial)
+
+setwd("~/Documents/GitHub/IvoryCoast_IVR_Reports/TRECC Analyses/")
+
+vlookupPromotionType = read.csv("promotionType.csv",header=TRUE)
+vlookupPromotionType$userUnit = as.factor(vlookupPromotionType$userUnit)
+suppressWarnings(CIVdata_filter <- CIVdata_filter %>%
+                   left_join(vlookupPromotionType, by = c("userUnit")))
+
 ######################################################################################################
 #### Summarize multiple-attempts down into one row with First-attempt and Last-attempt accuracies ####
+setwd("~/Documents/IvoryCoast/data/")
 
 # First attempt statistics
 CIVdata_filter.firstattempt <- CIVdata_filter[CIVdata_filter$attemptNumber==1,] %>%
@@ -263,6 +284,10 @@ CIVdata_filter.trialid <- CIVdata_filter.questionid %>%
     trialDifficulty = round(mean(trialDifficulty),2),
     tokenDifficulty = round(mean(tokenDifficulty),2)
   )
+
+
+##################################################################################################################
+
 
 ###################
 #### CDR table ####

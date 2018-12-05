@@ -11,6 +11,24 @@ rm(list=ls())
 gc(verbose=TRUE)
 
 source("TRECC_dataPrep.R")
+
+knitr::knit_hooks$set(
+   error = function(x, options) {
+     paste('\n\n<div class="alert alert-danger">',
+           gsub('##', '\n', gsub('^##\ Error', '**Error**', x)),
+           '</div>', sep = '\n')
+   },
+   warning = function(x, options) {
+     paste('\n\n<div class="alert alert-warning">',
+           gsub('##', '\n', gsub('^##\ Warning:', '**Warning**', x)),
+           '</div>', sep = '\n')
+   },
+   message = function(x, options) {
+     paste('\n\n<div class="alert alert-info">',
+           gsub('##', '\n', x),
+           '</div>', sep = '\n')
+   }
+)
 ```
 
 ###Report Generation
@@ -20,7 +38,7 @@ message(paste("report generated:",Sys.time(),sep=""))
 ```
 
 ###What is the min/max and span of the data?
-####Note: Date shown here is the most recent day in the dataset and may be incomplete due to time of data export
+####Note: Date shown here is the most recent day in the dataset and may be incomplete due to time of data export.
 ```{r date range, echo = F}
 UAS_maxDate = max(CIVdata_filter$date)
 UAS_minDate = min(CIVdata_filter$date)
@@ -33,7 +51,11 @@ message(paste("CDR data ranges from ", CDR_minDate, " to ", CDR_maxDate,". The s
 ```
 
 ```{r saving, include=F}
-#write.csv(CIVdata_filter,paste("~/Documents/IvoryCoast/data/CIVData_currentDataThrough_",UAS_maxDate,".csv",sep=""),row.names = FALSE)
+
+CIVdata_filter = CIVdata_filter %>%
+  select(-(users.mobile_number))
+
+write.csv(CIVdata_filter,paste("~/Documents/IvoryCoast/data/CIVData_currentDataThrough_",UAS_maxDate,".csv",sep=""),row.names = FALSE)
 #write.xlsx(CIVdata_filter,paste("~/Documents/IvoryCoast/data/CIVData_currentDataThrough_",UAS_mostRecentDate,".xlsx",sep=""),row.names = FALSE)
 #write.csv(cdrData_filter,paste0("~/Documents/IvoryCoast/data/cdrData_currentDataThrough_",CDR_mostRecentDate,".csv"),row.names = FALSE)
 #write.xlsx(cdrData_filter,paste("~/Documents/IvoryCoast/data/cdrData_currentDataThrough_",CDR_mostRecentDate,".xlsx",sep=""),row.names = FALSE)
@@ -123,12 +145,12 @@ message(paste("There are",nrow(questionList),"rows in the Question List above.")
 <!-- ``` -->
 
 ###Do any trials have chance accuracy even after 3 attempts?
-####Two-option questions (cannot be re-attempted) show low accuracy rates on the first and only attempt
+####Two-option questions (cannot be re-attempted) show low accuracy rates on the first and only attempt.
 ```{r, echo = F}
 datatable(CIVdata_filter.trialid[CIVdata_filter.trialid$zLastAcc<1,c('trialID','students','presentations','options','LastAcc','zLastAcc')])
 ```
 
-####Three-option questions improve considerably
+####Three-option questions improve considerably.
 ```{r, echo = F}
 datatable(CIVdata_filter.trialid)
 ```
@@ -178,8 +200,8 @@ datatable(performanceFirstLessonToCurrent)
 ##2. Token Summary
 
 ###Token Distribution
-####difficulty_level_token increases by 1 if certain phonemes don't exist in Attié and also if the token contains a certain syllable structure
-####difficulty_level_trial increases by 1 for each shared phoneme (in the same position) between tokens
+####difficulty_level_token increases by 1 if certain phonemes don't exist in Attié and also if the token contains a certain syllable structure.
+####difficulty_level_trial increases by 1 for each shared phoneme (in the same position) between tokens.
 ```{r token distribution, echo = F}
 tokensInQuestions = CIVdata_filter %>%
   group_by(UAS.unit_id, cmsQuestions.question_number, cmsQuestions.difficulty_level_trial, cmsQuestions.difficulty_level_token) %>%
@@ -195,7 +217,7 @@ datatable(tokensInQuestions)
 
 
 ###Token Breakdown 
-#####How to read this table: Starting with row 1, a row can be interpreted as 'token_a_id #20 was experienced by 5 students in 26 attempts of 3 unique questions, with an average correct respose rate of 0.69'
+#####How to read this table: Starting with row 1, a row can be interpreted as 'token_a_id #20 was experienced by 5 students in 26 attempts of 3 unique questions, with an average correct respose rate of 0.69'.
 #####Sorting by avgAttemptCorrectness reveals a number of token_ids that have an average correctness below chance. This may indicate a number of different possibilities: the token is very difficult, the token is not being played so students are guessing because they hear silence, their environment was noisy and so they didn't hear the options, etc.
 
 ###{.tabset}
@@ -344,7 +366,7 @@ token_lern
 
 ##3. Syllable analysis
 ###What syllable structures have been used and what have been excluded so far?
-####Blank FirstAcc or LastAcc means that the token has not been presented to any students yet
+####Blank FirstAcc or LastAcc means that the token has not been presented to any students yet.
 ```{r, echo = F}
 # Count the number of total presentations for each syllable structure
 # Check the difficulty and learnability of each of the presented syllable structures
@@ -361,7 +383,7 @@ datatable(CIVdata_filter.syllable)
 ```
 
 ###Does syllable structure significantly affect the token difficulty?
-####These are the syllables that have appeared in questions so far
+####These are the syllables that have appeared in questions so far.
 ####The percent under each syllable structure indicates the percent of the attempts that include that structure.
 ```{r, echo = F}
 CIVdata_filter.tokenid$token_a_syllable_structure = as.factor(CIVdata_filter.tokenid$token_a_syllable_structure)
@@ -388,43 +410,38 @@ syllable_effect_zL <- lm(zLastAcc~token_a_syllable_structure,CIVdata_filter.toke
 anova(syllable_effect_zL)
 ```
 
-<!-- ```{r} -->
-<!-- summary(lmer(UAS.correct ~ UAS.unit_id + cmsQuestions.difficulty_level_token + cmsQuestions.difficulty_level_trial + (1|studentStudyId), data = CIVdata_filter)) -->
+<!-- # ```{r} -->
+<!-- # summary(lmer(UAS.correct ~ UAS.unit_id + cmsQuestions.difficulty_level_token + cmsQuestions.difficulty_level_trial + (1|studentStudyId), data = CIVdata_filter)) -->
+<!-- #  -->
+<!-- # ``` -->
 
-<!-- ``` -->
+##4. Token Type Analysis
 
-<!-- ##4. Token Type Analysis -->
+###Does token type significantly affect the token difficulty?
+####List the current token types
+```{r, echo = F}
+CIVdata_filter.tokenid$token_a_type = as.factor(CIVdata_filter.tokenid$token_a_type)
+round(prop.table(table(CIVdata_filter.tokenid$token_a_type)),2)
+message("note: 1 = word; 2 = syllable; 3 = phoneme")
+```
 
-<!-- ###Does token type significantly affect the token difficulty? -->
-<!-- ####List the current token types -->
-<!-- ```{r, echo = F} -->
-<!-- CIVdata_filter.tokenid$token_a_type = as.factor(CIVdata_filter.tokenid$token_a_type) -->
-<!-- unique(CIVdata_filter.tokenid$token_a_type) -->
-<!-- #note: 1 = word; 2 = syllable; 3 = phoneme -->
-<!-- ``` -->
+####{.tabset}
+#####First attempt
+```{r, echo = F}
+type_effect_zF <- lm(zFirstAcc~token_a_type,CIVdata_filter.tokenid,weight=CIVdata_filter.tokenid$presentations)
+anova(type_effect_zF)
+```
 
-<!-- ```{r} -->
-<!-- type_effect_zF <- lm(zFirstAcc~token_a_type,CIVdata_filter.tokenid,weight=CIVdata_filter.tokenid$presentations) -->
-<!-- #summary(syllable_effect_zF) -->
-<!-- anova(type_effect_zF) -->
-
-<!-- summary(LSD.test(type_effect_zF, CIVdata_filter.tokenid$token_a_type)) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- type_effect_zL <- lm(zLastAcc~token_a_type,CIVdata_filter.tokenid,weight=CIVdata_filter.tokenid$presentations) -->
-<!-- #summary(syllable_effect_zF) -->
-<!-- anova(type_effect_zL) -->
-
-<!-- x = HSD.test(type_effect_zL, "token_a_type", group = TRUE) -->
-<!-- summary(x) -->
-
-<!-- ``` -->
+#####Last attempt
+```{r, echo = F}
+type_effect_zL <- lm(zLastAcc~token_a_type,CIVdata_filter.tokenid,weight=CIVdata_filter.tokenid$presentations)
+anova(type_effect_zL)
+```
 
 <!-- ##5. Promotion Analysis -->
 
-<!-- ###thresholds -->
-<!-- ```{r} -->
+<!-- ####The table below shows thresholds for the number of students at each percent mark in each unit. So for unit 1, each of the columns indicates N% of unique students that have experienced that unit. The levels currently are 85%, 75%, 50%, and 25%. These values can be used to seed various filters in the performance curves below. -->
+<!-- ```{r, echo = F} -->
 
 <!-- studentThreshold = CIVdata_filter %>% -->
 <!--   group_by(UAS.unit_id) %>% -->
@@ -440,99 +457,896 @@ anova(syllable_effect_zL)
 
 <!-- ``` -->
 
-<!-- ###Questions prior to promotion -->
 
-<!-- ```{r} -->
+<!-- ###Performance Curves -->
+<!-- ####There are many different factors to include in a promotion curve. For these performance curves, I have included the code so you can see the filters I have on the data. -->
 
-<!-- #questionsForPromotion =  -->
+<!-- ###Questions Per Unit -->
+<!-- ####{.tabset} -->
 
+<!-- ```{r, include = F} -->
+
+<!-- CIVdata_filter$UAS.unit_id = as.factor(CIVdata_filter$UAS.unit_id) -->
 <!-- ``` -->
 
+<!-- #####first attempts -->
 <!-- ```{r} -->
-<!-- #questions per unit -->
 <!-- qPerUnit = CIVdata_filter %>% -->
-<!--   #filter(questionNumberPerUnit <= 100) %>% -->
+<!--   filter(promotionType == "self") %>% -->
+<!--   filter(attemptNumber == 1) %>% -->
+<!--   filter(questionNumberPerUnit <= 50) %>% -->
 <!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
 <!--   summarize(nStudents = n_distinct(studentStudyId), -->
 <!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
-<!--   filter(UAS.unit_id == 1) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
 <!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
 <!--   scale_y_continuous(limits = c(0, 1)) + -->
-<!--   #geom_jitter(alpha = .2, width = .2) +  -->
-<!--   stat_smooth(aes(group = UAS.unit_id))   -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1","firebrick1")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####first and second attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter(promotionType == "self") %>% -->
+<!--   filter(attemptNumber != 3) %>% -->
+<!--   filter(questionNumberPerUnit <= 50) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1","firebrick1")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####all attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter(promotionType == "self") %>% -->
+<!--   filter(questionNumberPerUnit <= 50) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1","firebrick1")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- ###By question type -->
+
+<!-- ###Unit 1, Question 1 -->
+<!-- #### example: “Quel mot termine en /o/? *pause* [bo], [dõ], [li] *pause* Appuie 1 pour [bo], 2 pour [dõ], ou 3 pour [li]."  -->
+<!-- ####{.tabset} -->
+<!-- #####first attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 1, -->
+<!--     UAS.unit_id == 1, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber == 1, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####first and second attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 1, -->
+<!--     UAS.unit_id == 1, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber != 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####all attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 1, -->
+<!--     UAS.unit_id == 1, -->
+<!--     promotionType == "self", -->
+<!--     #attemptNumber == 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- ###Unit 1, Question 3 -->
+<!-- #### “Quel mot ne va pas avec les autres? *pause* [bo], [fo], [si] *pause* Appuie 1 pour [bo], 2 pour [fo] , ou 3 pour [si]." -->
+<!-- ####{.tabset} -->
+<!-- #####first attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 3, -->
+<!--     UAS.unit_id == 1, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber == 1, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####first and second attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 3, -->
+<!--     UAS.unit_id == 1, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber != 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####all attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 3, -->
+<!--     UAS.unit_id == 1, -->
+<!--     promotionType == "self", -->
+<!--     #attemptNumber == 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50")) -->
+
 
 <!-- qPerUnit -->
 <!-- ``` -->
 
 
+<!-- ###Unit 1, Question 5 -->
+<!-- #### "Les mots suivants, riment-ils? *pause* [ta], [ma] *pause* Appuie 1 pour oui, 2 pour non" -->
+<!-- ####{.tabset} -->
+<!-- #####all attempts (yes/no question allow one attempt) -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 5, -->
+<!--     UAS.unit_id == 1, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber == 1, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+
+
+
+<!-- ###Unit 1, Question 7 -->
+<!-- #### “Quelle paire des mots fait un rime? *pause* [pɛ̃], [mɛ̃] *pause* [pɛ̃] [põ] *pause* Appuie 1 pour [pɛ̃] [mɛ̃] ou 2 pour [pɛ̃] [põ]" -->
+<!-- ####{.tabset} -->
+<!-- #####first attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 7, -->
+<!--     UAS.unit_id == 1, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber == 1, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####first and second attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 7, -->
+<!--     UAS.unit_id == 1, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber != 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####all attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 7, -->
+<!--     UAS.unit_id == 1, -->
+<!--     promotionType == "self", -->
+<!--     #attemptNumber == 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+
+<!-- ###By question type -->
+
+<!-- ###Unit 2, Question 2 -->
+<!-- #### "Lequel termine en /o/?  /ko/, /zõ/, /gi/ Appuie 1 pour /ko/, 2 pour /zõ/, ou 3 pour /gi/." -->
+<!-- ####{.tabset} -->
+<!-- #####first attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 2, -->
+<!--     UAS.unit_id == 2, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber == 1, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("olivedrab3")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####first and second attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 2, -->
+<!--     UAS.unit_id == 2, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber != 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("olivedrab3")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####all attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 2, -->
+<!--     UAS.unit_id == 2, -->
+<!--     promotionType == "self", -->
+<!--     #attemptNumber == 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("olivedrab3")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+
+<!-- ###By question type -->
+
+<!-- ###Unit 2, Question 4 -->
+<!-- #### “Lequel ne va pas avec les autres? *pause* [go], [ko], [zi] *pause* Appuie 1 pour [go], 2 pour [ko] , ou 3 pour [zi]." -->
+<!-- ####{.tabset} -->
+<!-- #####first attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 4, -->
+<!--     UAS.unit_id == 2, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber == 1, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("olivedrab3")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####first and second attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 4, -->
+<!--     UAS.unit_id == 2, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber != 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("olivedrab3")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####all attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 4, -->
+<!--     UAS.unit_id == 2, -->
+<!--     promotionType == "self", -->
+<!--     #attemptNumber == 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("olivedrab3")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+
+<!-- ###By question type -->
+
+<!-- ###Unit 2, Question 6 -->
+<!-- #### "Les syllabes suivantes, riment-elles? *pause* [go], [ga] *pause* Appuie 1 pour oui, 2 pour non" -->
+<!-- ####{.tabset} -->
+<!-- #####all attempts (yes/no question allow one attempt) -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 6, -->
+<!--     UAS.unit_id == 2, -->
+<!--     promotionType == "self", -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("olivedrab3")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+
+<!-- ###Unit 2, Question 8 -->
+<!-- #### “Quelle paire fait un rime? *pause* [go], [ga] *pause* [go] [lo] *pause* Appuie 1 pour [go] [ga] ou 2 pour [go] [lo]" -->
+<!-- ####{.tabset} -->
+<!-- #####first attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 8, -->
+<!--     UAS.unit_id == 2, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber == 1, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("olivedrab3")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####first and second attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 8, -->
+<!--     UAS.unit_id == 2, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber != 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("olivedrab3")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####all attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 8, -->
+<!--     UAS.unit_id == 2, -->
+<!--     promotionType == "self", -->
+<!--     #attemptNumber == 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("olivedrab3")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+
+<!-- ###Unit 3, Question 1 -->
+<!-- #### "Écoute ces mots. Lequel ne va pas avec les autres? *pause* [tõ], terre [ta], leur [li] *pause* Appuie 1 pour [tõ], 2 pour [ta], 3 pour [li]."  -->
+<!-- ####{.tabset} -->
+<!-- #####first attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 9, -->
+<!--     UAS.unit_id == 3, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber == 1, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("darkgoldenrod1")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####first and second attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 9, -->
+<!--     UAS.unit_id == 3, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber != 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("darkgoldenrod1")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####all attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 9, -->
+<!--     UAS.unit_id == 3, -->
+<!--     promotionType == "self", -->
+<!--     #attemptNumber == 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("darkgoldenrod1")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+
+<!-- ###Unit 4, Question 1 -->
+<!-- #### “Quel mot commence avec le son /d/?"	 -->
+<!-- ####{.tabset} -->
+<!-- #####first attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 15, -->
+<!--     UAS.unit_id == 4, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber == 1, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("firebrick1")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####first and second attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 15, -->
+<!--     UAS.unit_id == 4, -->
+<!--     promotionType == "self", -->
+<!--     attemptNumber != 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("firebrick1")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+<!-- #####all attempts -->
+<!-- ```{r} -->
+<!-- qPerUnit = CIVdata_filter %>% -->
+<!--   filter( -->
+<!--     cmsQuestions.trial_id == 15, -->
+<!--     UAS.unit_id == 4, -->
+<!--     promotionType == "self", -->
+<!--     #attemptNumber == 3, -->
+<!--     questionNumberPerUnit <= 50 -->
+<!--   ) %>% -->
+<!--   group_by(UAS.unit_id, questionNumberPerUnit) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct))) %>% -->
+<!--   #filter(UAS.unit_id == 1) %>% -->
+<!--   ggplot(aes(x = questionNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("firebrick1")) -->
+
+
+<!-- qPerUnit -->
+<!-- ``` -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- ###Questions Per Lesson -->
+
+<!-- ####{.tabset} -->
+<!-- #####first attempts -->
 <!-- ```{r} -->
 <!-- #questions per lesson -->
+
+<!-- CIVdata_filter$lessonNumberPerUnit = as.numeric(CIVdata_filter$lessonNumberPerUnit) -->
+
 <!-- qPerLesson = CIVdata_filter %>% -->
-<!--   filter(lessonNumberPerUnit <= 200) %>% -->
+<!--   filter(promotionType == "self") %>% -->
+<!--   filter(attemptNumber == 1) %>% -->
+<!--   filter(lessonNumberPerUnit <= 10) %>% -->
 <!--   group_by(UAS.unit_id, lessonNumberPerUnit, questionNumberPerLesson) %>% -->
 <!--   summarize(nStudents = n_distinct(studentStudyId), -->
 <!--             percentCorrectAttempts = round(mean(UAS.correct),2)) %>% -->
-<!--   filter(nStudents > 25) %>% -->
-<!--   ggplot(aes(x = questionNumberPerLesson, y = percentCorrectAttempts)) + -->
+<!--   #filter(nStudents > 25) %>% -->
+<!--   ggplot(aes(x = lessonNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
 <!--   #geom_jitter(alpha = .2, width = .2) + -->
 <!--   scale_y_continuous(limits = c(0, 1)) + -->
-<!--   stat_smooth()   -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1","firebrick1")) -->
+
+
+<!-- qPerLesson -->
+<!-- ``` -->
+
+<!-- #####first and second attempts -->
+<!-- ```{r} -->
+<!-- #questions per lesson -->
+
+<!-- CIVdata_filter$lessonNumberPerUnit = as.numeric(CIVdata_filter$lessonNumberPerUnit) -->
+
+<!-- qPerLesson = CIVdata_filter %>% -->
+<!--   filter(promotionType == "self") %>% -->
+<!--   filter(attemptNumber != 3) %>% -->
+<!--   filter(lessonNumberPerUnit <= 10) %>% -->
+<!--   group_by(UAS.unit_id, lessonNumberPerUnit, questionNumberPerLesson) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct),2)) %>% -->
+<!--   #filter(nStudents > 25) %>% -->
+<!--   ggplot(aes(x = lessonNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id), se = F) + -->
+<!--   scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1","firebrick1")) -->
+
+
+<!-- qPerLesson -->
+<!-- ``` -->
+
+<!-- #####all attempts -->
+<!-- ```{r} -->
+<!-- #questions per lesson -->
+
+<!-- CIVdata_filter$lessonNumberPerUnit = as.numeric(CIVdata_filter$lessonNumberPerUnit) -->
+
+<!-- qPerLesson = CIVdata_filter %>% -->
+<!--   filter(promotionType == "self") %>% -->
+<!--   #filter(attemptNumber == 1) %>% -->
+<!--   filter(lessonNumberPerUnit <= 10) %>% -->
+<!--   group_by(UAS.unit_id, lessonNumberPerUnit, questionNumberPerLesson) %>% -->
+<!--   summarize(nStudents = n_distinct(studentStudyId), -->
+<!--             percentCorrectAttempts = round(mean(UAS.correct),2)) %>% -->
+<!--   #filter(nStudents > 25) %>% -->
+<!--   ggplot(aes(x = lessonNumberPerUnit, y = percentCorrectAttempts, color = UAS.unit_id)) + -->
+<!--   #geom_jitter(alpha = .2, width = .2) + -->
+<!--   scale_y_continuous(limits = c(0, 1)) + -->
+<!--   stat_smooth(aes(group = UAS.unit_id),se = F) + -->
+<!--   scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1","firebrick1")) -->
+
 
 <!-- qPerLesson -->
 <!-- ``` -->
 
 
+
+
+
+
+<!-- ### Attempts -->
+<!-- ####This shows the attempts across all units -->
 <!-- ```{r} -->
-<!-- qOverall = CIVdata_filter %>% -->
-<!--   filter(questionNumberOverall <= 25) %>% -->
-<!--   group_by(questionNumberOverall) %>% -->
+<!-- #attempt overall -->
+<!-- aOverall = CIVdata_filter %>% -->
+<!--   filter(promotionType == "self") %>% -->
+<!--   filter(options == 3 & attemptNumber <= 3 & questionNumberPerUnit < 50) %>% -->
+<!--   group_by(attemptNumber) %>% -->
 <!--   summarize(nStudents = n_distinct(studentStudyId), -->
 <!--             percentCorrectAttempts = round(mean(UAS.correct),2)) %>% -->
 <!--   #filter(nStudents > 30) %>% -->
-<!--   ggplot(aes(x = questionNumberOverall, y = percentCorrectAttempts)) + -->
+<!--   ggplot(aes(x = attemptNumber, y = percentCorrectAttempts)) + -->
 <!--   #geom_jitter(alpha = .2, width = .2) + -->
 <!--   scale_y_continuous(limits = c(0, 1)) + -->
-<!--   stat_smooth()   -->
+<!--   stat_smooth(se = F) -->
+<!--   #scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1","firebrick1")) -->
 
-<!-- qOverall -->
+<!-- aOverall -->
 <!-- ``` -->
 
-<!-- ```{r} -->
-<!-- # #attempt overall -->
-<!-- # aOverall = CIVdata_filter %>% -->
-<!-- #   filter(options == 3 & attemptNumber <= 3 & questionNumberPerUnit < 150) %>% -->
-<!-- #   group_by(options, attemptNumber) %>% -->
-<!-- #   summarize(nStudents = n_distinct(studentStudyId), -->
-<!-- #             percentCorrectAttempts = round(mean(UAS.correct),2)) %>% -->
-<!-- #   #filter(nStudents > 30) %>% -->
-<!-- #   ggplot(aes(x = attemptNumber, y = percentCorrectAttempts)) + -->
-<!-- #   #geom_jitter(alpha = .2, width = .2) + -->
-<!-- #   scale_y_continuous(limits = c(0, 1)) + -->
-<!-- #   stat_smooth()   -->
-<!-- #  -->
-<!-- # aOverall -->
-<!-- ``` -->
 
+
+
+
+<!-- ###Attempts Per Question -->
 <!-- ```{r} -->
 <!-- #attempt per question -->
 <!-- aPerQuestion = CIVdata_filter %>% -->
+<!--   filter(promotionType == "self") %>% -->
 <!--   #filter(lessonNumberPerUnit <= 200) %>% -->
 <!--   group_by(UAS.unit_id, lessonNumberPerUnit, questionNumberPerLesson, attemptNumber) %>% -->
 <!--   summarize(nStudents = n_distinct(studentStudyId), -->
 <!--             percentCorrectAttempts = round(mean(UAS.correct),2)) %>% -->
-<!--   filter(nStudents > 25) %>% -->
+<!--   #filter(nStudents > 25) %>% -->
 <!--   ggplot(aes(x = questionNumberPerLesson, y = percentCorrectAttempts)) + -->
 <!--   #geom_jitter(alpha = .2, width = .2) + -->
 <!--   scale_y_continuous(limits = c(0, 1)) + -->
-<!--   stat_smooth()   -->
+<!--   stat_smooth(aes(group = UAS.unit_id),se = F) + -->
+<!--   scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1","firebrick1")) -->
 
-<!-- qPerLesson -->
+
+<!-- aPerQuestion -->
 
 <!-- ``` -->
 
+
+<!-- ###Attempts Per Lesson -->
 <!-- ```{r} -->
 <!-- #attempt per lesson -->
-<!-- aPerLesson = CIVdata_filter %>% -->
+<!-- suppressWarnings( -->
+<!--   CIVdata_filter %>% -->
 <!--   filter(attemptNumber <= 3 & lessonNumberPerUnit <= 200) %>% -->
 <!--   group_by(studentStudyId, UAS.unit_id, lessonNumberPerUnit, questionNumberPerLesson, attemptNumber) %>% -->
 <!--   summarize(percentCorrect = round(mean(UAS.correct),2)) %>% -->
@@ -544,9 +1358,10 @@ anova(syllable_effect_zL)
 <!--   ggplot(aes(x = attemptNumber, y = percentCorrectAttempts)) + -->
 <!--   #geom_jitter(alpha = .2, width = .2) + -->
 <!--   scale_y_continuous(limits = c(0, 1)) + -->
-<!--   stat_smooth()   -->
+<!--   stat_smooth() -->
+<!-- ) -->
 
-<!-- aPerLesson -->
+<!-- #suppressWarnings(aPerLesson) -->
 <!-- ``` -->
 
 <!-- ```{r} -->

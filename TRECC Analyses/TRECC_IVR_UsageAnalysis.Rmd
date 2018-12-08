@@ -279,54 +279,59 @@ avgCallTime %>%
 
 ###Question Progress For Promotion
 ####How many questions did a student have to answer in a given unit until they achieved the promotion threshold?
-####This analysis is only for students who were promoted into subsequent units based on their performance. Students who never passed Unit 1 are excluded from this analysis. Students who were manually promoted into later units have the manually promoted unit and the prior unit filtered out. For example, if a student achieved the promotion threshold for unit 1 and unit 2 on their own, and then while they were in the middle of unit 3 were promoted to unit 4, I would filter out unit 3 and unit 4, but keep unit 1 and unit 2.
+####This analysis is only for students who were promoted into subsequent units based on their performance. Students who never passed Unit 1 are excluded from this analysis. Students who were manually promoted into later units have that unit with interrupted progress filtered out of this analysis. For example, if a student achieved the promotion threshold for unit 2 on their own, and then while they were in the middle of unit 3 were promoted to unit 4, I would filter out unit 3 because their natural progress was interrupted. However, I would keep units 1 and 2. I would filter out unit 4 because the student is still currently working in that unit.
 
-<!-- ###{.tabset} -->
+###{.tabset}
 
-<!-- ####Aggregate Table -->
-<!-- # ```{r, echo = F} -->
-<!-- # promotionQuestions = Qcount_unit %>% -->
-<!-- #   ungroup() %>% -->
-<!-- #   filter(artificialPromotion == 0, studentStudyId != 15, studentStudyId != 33, studentStudyId != 38) %>% -->
-<!-- #   mutate(questionsAnsweredInCurrentUnitBeforePromotion = ifelse(studentStudyId == lead(studentStudyId), uniqueQuestions,NA), -->
-<!-- #          daysCalledInCurrentUnitBeforePromotion = ifelse(studentStudyId == lead(studentStudyId), daysCalledIVR,NA)) %>% -->
-<!-- #   filter(UAS.unit_id != 1) %>% -->
-<!-- #   mutate(UAS.unit_id = UAS.unit_id-1) -->
-<!-- #  -->
-<!-- # promotionQuestions_table = promotionQuestions %>% -->
-<!-- #   group_by(UAS.unit_id) %>% -->
-<!-- #   summarize(nStudentsPromoted = n_distinct(studentStudyId), -->
-<!-- #             avg_DaysBeforePromotionToCurrentUnit = round(mean(daysCalledInCurrentUnitBeforePromotion),2), -->
-<!-- #             sd_DaysBeforePromotionToCurrentUnit = round(sd(daysCalledInCurrentUnitBeforePromotion),2), -->
-<!-- #             avgQ_ForPromotionToCurrentUnit = round(mean(questionsAnsweredInCurrentUnitBeforePromotion),2), -->
-<!-- #             sdQ_ForPromotionToCurrentUnit = round(sd(questionsAnsweredInCurrentUnitBeforePromotion),2), -->
-<!-- #             minQ_ForPromotionToCurrentUnit = min(questionsAnsweredInCurrentUnitBeforePromotion), -->
-<!-- #             maxQ_ForPromotionToCurrentUnit = max(questionsAnsweredInCurrentUnitBeforePromotion)) -->
-<!-- #  -->
-<!-- # #datatable(promotionQuestions_table) -->
-<!-- # ``` -->
+####Aggregate Table
 
+```{r, echo = F}
+ promotionQuestions = Qcount_unit %>%
+  ungroup() %>%
+  filter(artificialPromotion == 0, studentStudyId != 15, studentStudyId != 33, studentStudyId != 38) %>%
+  mutate(terminalUnit = ifelse(studentStudyId != lead(studentStudyId), 1, 0)) %>%
+  filter(terminalUnit == 0)
+  #mutate(questionsAnsweredInCurrentUnitBeforePromotion = ifelse(studentStudyId == lead(studentStudyId), uniqueQuestions,NA),
+  #        daysCalledInCurrentUnitBeforePromotion = ifelse(studentStudyId == lead(studentStudyId), daysCalledIVR,NA))
+   #filter(UAS.unit_id != 1) %>%
+   #mutate(UAS.unit_id = UAS.unit_id-1)
 
-<!-- ####Scatterplot -->
-<!-- ```{r, echo = F} -->
-<!-- promotionQuestions$UAS.unit_id = as.character(promotionQuestions$UAS.unit_id) -->
+ promotionQuestions_table = promotionQuestions %>%
+   group_by(UAS.unit_id) %>%
+   summarize(nStudents = n_distinct(studentStudyId),
+             avg_DaysInUnitBeforePromotion = round(mean(daysCalledIVR),2),
+             sd_DaysInUnitBeforePromotion = round(sd(daysCalledIVR),2),
+             avg_QBeforePromotion = round(mean(uniqueQuestions),2),
+             sd = round(sd(uniqueQuestions),2),
+             min = min(uniqueQuestions),
+             max = max(uniqueQuestions))
 
-<!-- promotionQuestions %>% -->
-<!--   ggplot(aes(x=daysCalledIVR,y=questionsAnsweredInCurrentUnitBeforePromotion, color=UAS.unit_id)) + -->
-<!--   geom_point() + -->
-<!--   scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1")) -->
-
-<!-- ``` -->
-
-<!-- ####Student Table -->
-<!-- ```{r, echo = F} -->
-<!-- datatable(promotionQuestions) -->
-<!-- ``` -->
+ datatable(promotionQuestions_table)
+ 
+```
 
 
-<!-- # ```{r, include = F} -->
-<!-- # promotionQuestions_csv = promotionQuestions %>% -->
-<!-- #   select(studentStudyId, UAS.unit_id) -->
-<!-- # ``` -->
+
+####Scatterplot
+```{r, echo = F}
+promotionQuestions$UAS.unit_id = as.character(promotionQuestions$UAS.unit_id)
+
+promotionQuestions %>%
+  ggplot(aes(x=daysCalledIVR,y=uniqueQuestions, color=UAS.unit_id)) +
+  geom_point() +
+  scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1"))
+
+```
+
+####Student Table
+```{r, echo = F}
+datatable(promotionQuestions)
+```
+
+
+```{r, include = F}
+promotionQuestions_csv = promotionQuestions %>%
+ select(studentStudyId, UAS.unit_id)
+```
 
 

@@ -33,7 +33,7 @@ knitr::knit_hooks$set(
 
 ###Report Generation
 ```{r report time, echo = F}
-message(paste("report generated:",Sys.time(),sep=""))
+message(paste("report generated: ",Sys.time(),sep=""))
 
 ```
 
@@ -437,6 +437,8 @@ anova(type_effect_zF)
 type_effect_zL <- lm(zLastAcc~token_a_type,CIVdata_filter.tokenid,weight=CIVdata_filter.tokenid$presentations)
 anova(type_effect_zL)
 ```
+
+
 
 <!-- ##5. Promotion Analysis -->
 

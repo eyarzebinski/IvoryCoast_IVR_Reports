@@ -37,7 +37,7 @@ library(openxlsx)
 setwd("~/Documents/IvoryCoast/data/")
 
 # run the latest data!
-CIVdata = read.csv(file = "UAS_query_result_2018-12-05T15_31_49.056Z.csv")
+CIVdata = read.csv(file = "UAS_query_result_2018-12-07T13_53_39.462Z.csv")
 cdrData = read.csv(file = "CDR_query_result_2018-11-19T16_40_56.492Z.csv")
 
 #merge in student study id

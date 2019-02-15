@@ -1,9 +1,11 @@
 ---
-title: "TRECC IVR Usage Analyses"
-author: "Evelyn Yarzebinski, Benjamin Zinszer, Mackenzie Campbell"
+title: "TRECC IVR Usage Analyses - 2019 Full Study"
+author: "Evelyn Yarzebinski"
 output:
-  html_document:
-  toc: true
+   html_document:
+     toc: true
+     toc_float: true
+     theme: united
 ---
 
 ##0. Metadata
@@ -12,7 +14,7 @@ output:
 rm(list=ls())
 gc(verbose=TRUE)
 
-source("TRECC_dataPrep.R")
+source("TRECC_dataPrep_fullStudy_HD.R")
 
 knitr::knit_hooks$set(
    error = function(x, options) {
@@ -39,22 +41,30 @@ message(paste0("report generated: ",Sys.time()))
 
 ```
 
-###What is the min/max and span of the data?
-####Note: Date shown here is the most recent day in the dataset. Due to the time of data export from metabase, the most recent day will most likely not be a full, complete day.
+###Range of dates in the datasets
+####Note: Date shown here is the most recent day in the dataset. Due to the time of data export, the most recent day will most likely not be a full, complete day.
 ```{r date range, echo = F}
-UAS_maxDate = max(CIVdata_filter$date)
-UAS_minDate = min(CIVdata_filter$date)
-CDR_maxDate = max(cdrData_filter_IVRCall$date)
-CDR_minDate = min(cdrData_filter_IVRCall$date)
+UAS_maxDate = max(UASdata_filter$date)
+UAS_minDate = min(UASdata_filter$date)
+CDR_maxDate = max(cdrData_userCalls$date)
+CDR_minDate = min(cdrData_userCalls$date)
+interactions_maxDate = max(interactionsData$date)
+interactions_minDate = min(interactionsData$date)
 UAS_nDays = UAS_maxDate - UAS_minDate + 1
 CDR_nDays = CDR_maxDate - CDR_minDate + 1
-message(paste("User Answer Data ranges from ", UAS_minDate," to ", UAS_maxDate,". The span is ",UAS_nDays," days.", sep = ""))
-message(paste("CDR data ranges from ", CDR_minDate, " to ", CDR_maxDate,". The span is ",CDR_nDays," days.", sep = ""))
+interactions_nDays = interactions_maxDate - interactions_minDate + 1
+message(paste("user_answer_stats ranges from ", UAS_minDate," to ", UAS_maxDate,". The span is ",UAS_nDays," days.", sep = ""))
+message(paste("cdr_ivr01 ranges from ", CDR_minDate, " to ", CDR_maxDate,". The span is ",CDR_nDays," days.", sep = ""))
+message(paste("interactions ranges from ", interactions_minDate, " to ", interactions_maxDate,". The span is ",interactions_nDays," days.", sep = ""))
+
 ```
 
-```{r saving, include=F}
-#write.csv(CIVdata_filter,paste("~/Documents/IvoryCoast/data/CIVData_currentDataThrough_",UAS_maxDate,".csv",sep=""),row.names = FALSE)
-#write.xlsx(CIVdata_filter,paste("~/Documents/IvoryCoast/data/CIVData_currentDataThrough_",UAS_maxDate,".xlsx",sep=""),row.names = FALSE)
+```{r saving, echo=F}
+#UASdata_filter = UASdata_filter %>%
+#  select(-c(users.mobile_number, sessions.mobile_number, localPhoneNumber))
+
+#write.csv(UASdata_filter,paste0("UASdata_filter_",UAS_maxDate,".csv"), row.names = FALSE)
+#write.xlsx(UASdata_filter,paste("~/Documents/IvoryCoast/data/CIVData_currentDataThrough_",UAS_maxDate,".xlsx",sep=""),row.names = FALSE)
 #write.csv(cdrData_filter,paste0("~/Documents/IvoryCoast/data/cdrData_currentDataThrough_",CDR_maxDate,".csv"),row.names = FALSE)
 #write.xlsx(cdrData_filter,paste("~/Documents/IvoryCoast/data/cdrData_currentDataThrough_",CDR_maxDate,".xlsx",sep=""),row.names = FALSE)
 ```
@@ -62,24 +72,69 @@ message(paste("CDR data ranges from ", CDR_minDate, " to ", CDR_maxDate,". The s
 ##1. Explore the data
 ```{r student unit performance table, echo = F}
 #perfomance per student per unit
-Qcount_unit = CIVdata_filter %>%
-  group_by(studentStudyId, UAS.unit_id, artificialPromotion = receivedArtificialPromotionOutOfCurrentUnit) %>%
+Qcount_unit = UASdata_filter %>%
+  group_by(
+    village,
+    school,
+    studentStudyId,
+    userProgress.user_id,
+    UAS.unit_id,
+    cmsQuestions.question_number,
+    UAS.question_id
+    #artificialPromotion = receivedArtificialPromotionOutOfCurrentUnit
+    ) %>%
   summarize(uniqueQuestions = n_distinct(cmsQuestions.question_text),
-            maxQuestionsPerUnit = max(questionNumberPerUnit),
+            eneza_questionsAttempted = unique(userUnitStats.questions_attempted),
+            calc_questionsAttempted = max(questionNumberPerUnit),
             daysCalledIVR = n_distinct(date),
-            avgCorrectnessOfQuestionAttempts = round(mean(UAS.correct),2))
+            eneza_unitMasteryScore = unique(userUnitStats.average_user_mastery_score),
+            calc_trialMasteryScore = round(mean(UAS.correct),2)
+            )
 
-Qcount_unit_ = Qcount_unit %>%
-  group_by(studentStudyId) %>%
-  summarize(currentUnit = max(UAS.unit_id))
+Qcount_unit_agg = Qcount_unit %>%
+  group_by(
+    village,
+    school,
+    UAS.unit_id,
+    cmsQuestions.question_number
+  ) %>%
+  summarize(n_students = n_distinct(studentStudyId),
+            uniqueQuestions_agg = mean(uniqueQuestions),
+            #eneza_questionsAttempted = mean(eneza_questionsAttempted),
+            calc_questionsAttempted_agg = round(mean(calc_questionsAttempted),2),
+            #daysCalledIVR_agg = mean(daysCalledIVR),
+            #eneza_masteryScore = mean(eneza_masteryScore),
+            calc_masteryScore_agg = round(mean(calc_trialMasteryScore),2)
+            )
+  
+#Qcount_unit_expand = as.tibble(Qcount_unit)
 
-datatable(Qcount_unit)
+#Qcount_unit_expand = Qcount_unit_expand %>%
+#  tidyr::anti_join(Qcount_unit_expand)
 
+
+# tidyr::expand(nesting(studentStudyId), UAS.unit_id, cmsQuestions.question_number)
+       
+#Qcount_unit_spread = spread(Qcount_unit, cmsQuestions.question_number, calc_questionsAttempted)
+#Qcount_unit_spread[is.na(Qcount_unit_spread)] <- 0
+#Qcount_unit_gather = gather(Qcount_unit_spread, studentStudyId,unitId,daysCalledIVR,calc_masteryScore,1:7)
+
+#Qcount_unit_studentMaxUnit = Qcount_unit %>%
+#  group_by(studentStudyId) %>%
+#  summarize(currentUnit = max(UAS.unit_id))
+
+datatable(
+  Qcount_unit_agg, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
 ```
 
 
 ###Plot of student current progress in unit
-####The scatterplot hows the units that each student is currently in (eg the "1" is unit 1). A student with a red dot has passed the threshold for promotion (50% mastery on 16+ questions) and will receive the next unit's content on their next call. A student with a grey dot is below the threshold for promotion and will receive the current unit's content the next time they call.
+####The scatterplot hows the units that each student is currently in (eg the "1" is unit 1). A student with a red dot has passed the threshold for promotion (has seen 16+ questions and has 60% mastery on all available question types) and will receive the next unit's content on their next call. A student with a grey dot is below the threshold for promotion and will receive the current unit's content the next time they call.
 ####To see student progress in the highest unit, sort the "Explore the data" table by UAS.unit_id (descending)
 
 ####{.tabset}
@@ -87,18 +142,77 @@ datatable(Qcount_unit)
 ```{r plot of current progress, echo = F}
 Qcount_unit_filter <- Qcount_unit %>%
   ungroup() %>%
-  mutate(readyForPromotion = ifelse(uniqueQuestions >= 16 & avgCorrectnessOfQuestionAttempts >= 0.50, "1", "0")) %>%
+  group_by(studentStudyId, UAS.unit_id, cmsQuestions.question_number) %>%
+  mutate(achievedMastery = ifelse(calc_trialMasteryScore >= 0.60, 1, 0)) %>%
+  summarize(achievedMastery_mean = mean(achievedMastery),
+            achievedAttempts_sum = sum(calc_questionsAttempted))
+
+#expand question types not yet experienced
+Qcount_unit_filter = Qcount_unit_filter %>%
+  spread(cmsQuestions.question_number, achievedMastery_mean) %>%
+  gather(cmsQuestions.question_number,achievedMastery_mean,"1":"7") %>%
+  mutate(achievedAttempts_sum_V02 = ifelse(is.na(achievedMastery_mean), 0, achievedAttempts_sum))
+
+#turn the NAs in achievedMastery_mean into 0s.
+Qcount_unit_filter[is.na(Qcount_unit_filter)] <- 0
+
+#tidy the data
+Qcount_unit_filter$achievedAttempts_sum = Qcount_unit_filter$achievedAttempts_sum_V02
+Qcount_unit_filter$achievedAttempts_sum_V02 = NULL
+
+Qcount_unit_filter_V02 = Qcount_unit_filter %>%
+  group_by(studentStudyId, UAS.unit_id) %>%
+  summarize(achievedMastery_mean = mean(achievedMastery_mean),
+            achievedAttempts_sum = sum(achievedAttempts_sum),
+            readyForPromotion = ifelse(achievedMastery_mean == 1 & achievedAttempts_sum >= 15, "1", "0")) %>%
+  ungroup() %>%
   mutate(currentUnit = ifelse(studentStudyId != lead(studentStudyId), 1, 0))
 
-Qcount_unit_filter[nrow(Qcount_unit_filter), c("currentUnit")] <- 1
+#put a 1 at the end
+Qcount_unit_filter_V02[nrow(Qcount_unit_filter_V02), c("currentUnit")] <- 1
 
-Qcount_unit_filter = Qcount_unit_filter %>%
+Qcount_unit_filter_V02 = Qcount_unit_filter_V02 %>%
          filter(currentUnit == 1)
 
-ggplot(data=Qcount_unit_filter,aes(x=uniqueQuestions,y=avgCorrectnessOfQuestionAttempts,col = readyForPromotion)) + 
+ggplot(data=Qcount_unit_filter_V02,aes(x=as.numeric(achievedAttempts_sum),y=as.numeric(achievedMastery_mean),col = readyForPromotion)) + 
   geom_point() +
+  labs(x = "questionsAttempted", y = "masteryScore") +
   facet_wrap(~ UAS.unit_id, ncol = 4) +
   scale_color_manual(values=c("grey56","red3"))
+
+
+
+
+# #Vikram's mastery code
+# $min_trials = 15;
+#         $max_trials = 100;
+#         $avg_threshold = 0.6;
+# 
+# 
+#         // @todo Vikram
+#         // optimize Sql query
+#         $mastered_trial_ids = array();
+#         try {
+#             $sqlQuery = "SELECT AVG(correct) as score,COUNT(*) as question_count, trial_id FROM (SELECT a.correct,trial_id FROM user_answer_stats a, cms_questions q WHERE user_id=? AND a.question_id=q.id AND a.unit_id=?) t GROUP BY trial_id ORDER BY score ASC ";
+#             Log::info($sqlQuery);
+#             $result = DB::select($sqlQuery, [$user->id, $user->unit]);
+# 
+# 
+#             if (count($result) > 0) {
+#                 for ($x = 0; $x < count($result); $x++) {
+#                     Log::info("Mastery -- " . $result[$x]->trial_id . " " . $result[$x]->score . " " . $result[$x]->question_count);
+#                     if (($result[$x]->question_count >= $min_trials) && ($result[$x]->question_count <= $max_trials) && ($result[$x]->score >= $avg_threshold)) {
+#                         array_push($mastered_trial_ids, $result[$x]->trial_id);
+#                         Log::info("Mastered " . $result[$x]->trial_id);
+#                     }
+#                 }
+#             }
+#         } catch (Exception $e) {
+#             Log::error($e->getMessage());
+#         }
+
+
+
 ```
 
 #####Unit Summary Table
@@ -111,14 +225,29 @@ overallUnit = overallUnit %>%
   group_by(currentUnit) %>%
   summarize(nUsers = n_distinct(studentStudyId))
 
-datatable(overallUnit)
+datatable(
+  overallUnit, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
 ```
 
 #####Student List
 ```{r student list, echo = F}
 Qcount_unit_filter = Qcount_unit_filter %>%
-  select(studentStudyId, UAS.unit_id)
-datatable(Qcount_unit_filter)
+  select(studentStudyId, UAS.unit_id) %>%
+  group_by(studentStudyId) %>%
+  summarize(UAS.unit_id = max(UAS.unit_id))
+
+datatable(
+  Qcount_unit_filter, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
 
 #write.table(Qcount_unit_filter, "Qcount_unit_filter.csv", row.names = F, quote = F)
 ```
@@ -127,7 +256,7 @@ datatable(Qcount_unit_filter)
 <!-- ####This table also includes the number of unique questions (not number of attempts of each question) that a student experienced.  -->
 ```{r student question performance per unit per day table, echo = F}
 #questions and performance per student per unit per day
-Qcount_day = CIVdata_filter %>%
+Qcount_day = UASdata_filter %>%
   group_by(studentStudyId, UAS.unit_id,date) %>%
   summarize(uniqueQuestions = n_distinct(cmsQuestions.question_text),
             uniqueLessons = n_distinct(UAS.lesson_id),
@@ -140,17 +269,18 @@ Qcount_day = CIVdata_filter %>%
 
 ##2. Usage Exploratory Analyses
 
-###Usage patterns for each user (y axis) by each date (x axis)
-#####The color of each point indicates the max unit a student encounters on a given day. If a student works on unit 1 and unit 2 on the same day, the point will be coded 'unit 2'.
-#####Each point on the graph is a day that the student called the IVR. Each student has a horizontal line that connects that student's dots together. The line stops when a student stops calling.
+###Usage patterns by date
+####The color of each point indicates the max unit a student encounters on a given day. If a student works on unit 1 and unit 2 on the same day, the point will be coded 'unit 2'.
+####Each point on the graph is a day that the student called the IVR. Each student has a horizontal line that connects that student's dots together. The line stops when a student stops calling.
+####Note: As the daily usage grows, I will change this into a more appropriate visualization.
 
 ####{.tabset}
 
 #####Number of unique users per day
 ```{r users per day, echo = F}
 #users per day
-#usersPerDay = CIVdata_filter %>%
-usersPerDay = CIVdata_filter %>%
+#usersPerDay = UASdata_filter %>%
+usersPerDay = UASdata_filter %>%
   group_by(date) %>%
   summarize(uniqueUsers = n_distinct(studentStudyId))
 
@@ -174,24 +304,54 @@ ggplot(data=Qcount_day,aes(x=date,y=studentStudyId,group=studentStudyId, color=U
 
 ```
 
+###Average Duration Per User-Initiated Call
+####For when they initiate a call - not all initiated calls listed here have received lesson content.
+```{r avg time per call, echo = F}
+AvgTimeCall = cdrData_userCalls %>%
+  #filter(!is.na(elapsedTimeSec)) %>%
+  group_by(studentStudyId,uniqueid) %>%
+    summarize(MinPerCall = round(sum(billsec/60),2))
 
-###How much time do they spend on an average lesson?
+AvgTimeCall_Agg = AvgTimeCall %>%
+  group_by(studentStudyId) %>%
+  summarize(n_Calls = n_distinct(uniqueid),
+            avg_MinPerCall = round(mean(MinPerCall),2),
+            sd_MinPerCall = round(sd(MinPerCall),2))
 
-####Note: Time is still approximate at the moment. I took (time of current line - time of previous line) only if the two lines' lesson ID and date was the same, and if the hour in which the attempt occurred was either the same hour as the previous attempt or h+1 (to account for a student doing a lesson across the hour threshold). This eliminates inflated values due to multiple calls throughout a day.
+datatable(
+  AvgTimeCall_Agg, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+
+###Average Duration Per Lesson & Average Lessons Per Call
 
 ```{r avg time per lesson, echo = F}
-AvgTimeLesson = CIVdata_filter %>%
+AvgTimeLesson = UASdata_filter %>%
   filter(!is.na(elapsedTimeSec)) %>%
-  group_by(studentStudyId,UAS.lesson_id) %>%
+  group_by(studentStudyId,cdr.uniqueId,UAS.lesson_id) %>%
     summarize(MinPerLesson = round(sum(elapsedTimeSec/60),2))
 
 AvgTimeLesson_Agg = AvgTimeLesson %>%
   group_by(studentStudyId) %>%
-  summarize(uniqueLessons = n_distinct(UAS.lesson_id),
-            Avg_MinPerLesson = round(mean(MinPerLesson),2),
-            SD_MinPerLesson = round(sd(MinPerLesson),2))
+  summarize(n_Lessons = n_distinct(UAS.lesson_id),
+            n_Calls = n_distinct(cdr.uniqueId),
+            avg_LessonsPerCall = round(mean(n_Lessons/n_Calls),2),
+            avg_MinPerLesson = round(mean(MinPerLesson),2),
+            sd_MinPerLesson = round(sd(MinPerLesson),2))
 
-datatable(AvgTimeLesson_Agg)
+datatable(
+  AvgTimeLesson_Agg, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+
 ```
 
 ***
@@ -201,7 +361,7 @@ datatable(AvgTimeLesson_Agg)
 <!-- ###Total number of days each user has called the IVR -->
 <!-- ```{r days per user} -->
 <!-- #how many users per day -->
-<!-- daysPerUser = CIVdata_filter %>% -->
+<!-- daysPerUser = UASdata_filter %>% -->
 <!--   group_by(studentStudyId) %>% -->
 <!--   summarize(totalDays = n_distinct(date)) -->
 
@@ -218,32 +378,34 @@ datatable(AvgTimeLesson_Agg)
 
 <!-- datatable(overallTotalDaysCalled) -->
 <!-- ``` -->
-###When do students start calls, based on the CDR table?
-####During April and May 2018 interviews with Michael and Amy, parents said that the ideal time for the IVR call was between 17h - 19h, after the children are home from school, eaten dinner, and finished their chores. We see that most of the calls come during this time, but a number of calls come in the morning and afternoon as well!
-####The single histogram indicates - across all study days - the raw hour of the day when the IVR calls the student (based on Michel's IVR CDR call logs).
-####The multiple histograms indicate - per each study day - the raw hour of the day when the IVR calls the student (based on Michel's IVR CDR call logs). Phone training on 10/24 was a Wednesday. Since there are 7 graphs in each row, this means that the first column of graphs represents each Wednesday in a given week. Columns 4 and 5 represent all Saturdays and Sundays, respectively.
+###What time of day do users initiate calls?
+####The single histogram indicates - across all study days - the raw hour of the day when the user initiates a call.
+####The multiple histograms indicate - per each study day - the raw hour of the day when the user initiates a call.
 ###{.tabset}
 
 ####Single histogram (one across all study days)
 ```{r new lesson, hour of day - overall, echo = F}
-callStart <- cdrData_filter_IVRCall
-#callStart <- CIVdata_filter
+callStart <- cdrData_userCalls
+#callStart <- UASdata_filter
 
-ggplot(callStart, aes(x = hourExtract)) +
-  geom_histogram(binwidth = 1)
+ggplot(callStart, aes(x = as.numeric(hourExtract))) +
+  geom_histogram(binwidth = 1) +
+  labs(x = "hourExtract")
 ```
 
-####Multiple histograms (one per each study day)
+####Multiple histograms (one per study day)
 ```{r new lesson, hour of day - aggregate, echo = F}
 callStart %>%
-  ggplot(aes(x = hourExtract)) +
+  ggplot(aes(x = as.numeric(hourExtract))) +
   geom_histogram(binwidth = 1) +
+  labs(x = "hourExtract") +
   facet_wrap(~ date, ncol = 7) 
 ```
 
-###Avg Call Time Per User (updated with Michel's IVR CDR call logs)
+###Avg Call Time Per User
 ####The table notes the total number of calls per student, total days, and average length of those calls.
 ####The scatterplot shows each unique student's number of calls (x axis) by average length of call (y axis).
+####Note that a user might make a call but may not receive study content during a particular call.
 
 ###{.tabset}
 ####Table
@@ -253,85 +415,188 @@ callStart %>%
 #  left_join(Qcount_unit_currentUnit, by = c("studentStudyId")) %>%
   #mutate(extraLine = ifelse(studentStudyId == lead(studentStudyId) & callstart == lead(callstart), 1, 0)) %>%
   #filter(extraLine == 0) %>%
-avgCallTime = cdrData_filter_IVRCall %>%
-  group_by(studentStudyId) %>%
-  summarize(nCalls = sum(inMichelsList),
+avgCallTime = cdrData_userCalls %>%
+  group_by(village, school, studentStudyId) %>%
+  summarize(nCalls = max(callNumber),
             nDaysCalled = n_distinct(date),
+            callsWithLessonContent = sum(callHasUASData),
             avgMinPerCall = round(mean(billsec)/60,2),
             sdMinPerCall = round(sd(billsec)/60,2))
 
-datatable(avgCallTime)
+avgCallTime_village = avgCallTime %>%
+  group_by(village, school) %>%
+  summarize(n_students = n_distinct(studentStudyId),
+            avg_calls = round(mean(nCalls),2),
+            avg_daysCalled = round(mean(nDaysCalled),2),
+            avg_callsWithLessons = round(mean(callsWithLessonContent),2),
+            avg_minPerCall = round(mean(avgMinPerCall)/60,2),
+            sd_minPerCall = round(sd(sdMinPerCall)/60,2))
+
+datatable(
+  avgCallTime_village, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
 ```
 
 
 ####Scatterplot
 ```{r, echo = F}
 avgCallTime %>%
-  ggplot(aes(x = nCalls, y = avgMinPerCall)) +
-  geom_point()
+  ggplot(aes(x = as.numeric(nCalls), y = as.numeric(avgMinPerCall))) +
+  geom_point() +
+  labs(x = "nCalls", y = "avgMinPerCall")
   #geom_jitter(alpha = .2, width = .2)
   #facet_wrap(~ questionAndUnit_concat, ncol = 5) +
   #stat_smooth()
 ```
 
+##3. Promotion Analysis -> currently not calculated as no students have been promoted yet.
 
-##3. Promotion Analysis
+<!-- ##3. Promotion Analysis -->
 
-###Question Progress For Promotion
-####How many questions did a student have to answer in a given unit until they achieved the promotion threshold?
-####This analysis is only for students who were promoted into subsequent units based on their performance. Students who never passed Unit 1 are excluded from this analysis. Students who were manually promoted into later units have that unit with interrupted progress filtered out of this analysis. For example, if a student achieved the promotion threshold for unit 2 on their own, and then while they were in the middle of unit 3 were promoted to unit 4, I would filter out unit 3 because their natural progress was interrupted. However, I would keep units 1 and 2. I would filter out unit 4 because the student is still currently working in that unit.
+<!-- ###Question Progress For Promotion -->
+<!-- ####How many questions did a student have to answer in a given unit until they achieved the promotion threshold? -->
+<!-- ####This analysis is only for students who were promoted into subsequent units based on their performance. Students who never passed Unit 1 are excluded from this analysis. Students who were manually promoted into later units have that unit with interrupted progress filtered out of this analysis. For example, if a student achieved the promotion threshold for unit 2 on their own, and then while they were in the middle of unit 3 were promoted to unit 4, I would filter out unit 3 because their natural progress was interrupted. However, I would keep units 1 and 2. I would filter out unit 4 because the student is still currently working in that unit. -->
 
-###{.tabset}
+<!-- ###{.tabset} -->
 
-####Aggregate Table
+<!-- ####Aggregate Table -->
 
-```{r, echo = F}
- promotionQuestions = Qcount_unit %>%
-  ungroup() %>%
-  filter(artificialPromotion == 0, studentStudyId != 15, studentStudyId != 33, studentStudyId != 38) %>%
-  mutate(terminalUnit = ifelse(studentStudyId != lead(studentStudyId), 1, 0)) %>%
-  filter(terminalUnit == 0)
-  #mutate(questionsAnsweredInCurrentUnitBeforePromotion = ifelse(studentStudyId == lead(studentStudyId), uniqueQuestions,NA),
-  #        daysCalledInCurrentUnitBeforePromotion = ifelse(studentStudyId == lead(studentStudyId), daysCalledIVR,NA))
-   #filter(UAS.unit_id != 1) %>%
-   #mutate(UAS.unit_id = UAS.unit_id-1)
+<!-- ```{r, echo = F} -->
+<!--  promotionQuestions = Qcount_unit %>% -->
+<!--   ungroup() %>% -->
+<!--   #filter(artificialPromotion == 0, studentStudyId != 15, studentStudyId != 33, studentStudyId != 38) %>% -->
+<!--   mutate(terminalUnit = ifelse(studentStudyId != lead(studentStudyId), 1, 0)) %>% -->
+<!--   filter(terminalUnit == 0) -->
+<!--   #mutate(questionsAnsweredInCurrentUnitBeforePromotion = ifelse(studentStudyId == lead(studentStudyId), uniqueQuestions,NA), -->
+<!--   #        daysCalledInCurrentUnitBeforePromotion = ifelse(studentStudyId == lead(studentStudyId), daysCalledIVR,NA)) -->
+<!--    #filter(UAS.unit_id != 1) %>% -->
+<!--    #mutate(UAS.unit_id = UAS.unit_id-1) -->
 
- promotionQuestions_table = promotionQuestions %>%
-   group_by(UAS.unit_id) %>%
-   summarize(nStudents = n_distinct(studentStudyId),
-             avg_DaysInUnitBeforePromotion = round(mean(daysCalledIVR),2),
-             sd_DaysInUnitBeforePromotion = round(sd(daysCalledIVR),2),
-             avg_QBeforePromotion = round(mean(uniqueQuestions),2),
-             sd = round(sd(uniqueQuestions),2),
-             min = min(uniqueQuestions),
-             max = max(uniqueQuestions))
+<!--  promotionQuestions_table = promotionQuestions %>% -->
+<!--    group_by(UAS.unit_id) %>% -->
+<!--    summarize(nStudents = n_distinct(studentStudyId), -->
+<!--              avg_DaysInUnitBeforePromotion = round(mean(daysCalledIVR),2), -->
+<!--              sd_DaysInUnitBeforePromotion = round(sd(daysCalledIVR),2), -->
+<!--              avg_QBeforePromotion = round(mean(uniqueQuestions),2), -->
+<!--              sd = round(sd(uniqueQuestions),2), -->
+<!--              min = min(uniqueQuestions), -->
+<!--              max = max(uniqueQuestions)) -->
 
- datatable(promotionQuestions_table)
- 
-```
+<!--  datatable( -->
+<!--   promotionQuestions_table,  -->
+<!--   extensions = 'FixedColumns', -->
+<!--   options = list( -->
+<!--   scrollX = TRUE, -->
+<!--   scrollCollapse = TRUE -->
+<!-- )) -->
 
-
-
-####Scatterplot
-```{r, echo = F}
-promotionQuestions$UAS.unit_id = as.character(promotionQuestions$UAS.unit_id)
-
-promotionQuestions %>%
-  ggplot(aes(x=daysCalledIVR,y=uniqueQuestions, color=UAS.unit_id)) +
-  geom_point() +
-  scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1"))
-
-```
-
-####Student Table
-```{r, echo = F}
-datatable(promotionQuestions)
-```
+<!-- ``` -->
 
 
-```{r, include = F}
-promotionQuestions_csv = promotionQuestions %>%
- select(studentStudyId, UAS.unit_id)
-```
+
+<!-- ####Scatterplot -->
+<!-- ```{r, echo = F} -->
+<!-- promotionQuestions$UAS.unit_id = as.character(promotionQuestions$UAS.unit_id) -->
+
+<!-- promotionQuestions %>% -->
+<!--   ggplot(aes(x=daysCalledIVR,y=uniqueQuestions, color=UAS.unit_id)) + -->
+<!--   geom_point() + -->
+<!--   scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1")) -->
+
+<!-- ``` -->
+
+<!-- ####Student Table -->
+<!-- ```{r, echo = F} -->
+<!--  datatable( -->
+<!--   promotionQuestions,  -->
+<!--   extensions = 'FixedColumns', -->
+<!--   options = list( -->
+<!--   scrollX = TRUE, -->
+<!--   scrollCollapse = TRUE -->
+<!-- )) -->
+<!-- ``` -->
 
 
+<!-- ```{r, include = F} -->
+<!-- promotionQuestions_csv = promotionQuestions %>% -->
+<!--  select(studentStudyId, UAS.unit_id) -->
+<!-- ``` -->
+
+<!-- ##4. Simultaneous Calls -->
+
+<!-- ```{r} -->
+
+<!-- cdrData_filter_simultaneousCalls <- cdrData_userCalls %>% -->
+<!--   mutate(minuteCategory = ifelse(minuteExtract <= 9, 00, -->
+<!--                                  ifelse(minuteExtract <= 19, 10, -->
+<!--                                         ifelse(minuteExtract <= 29, 20, -->
+<!--                                                ifelse(minuteExtract <= 39, 30, -->
+<!--                                                       ifelse(minuteExtract <= 49, 40, 50)))))) %>% -->
+<!--     # mutate(minuteCategory = ifelse(minuteExtract <= 4, 00,  -->
+<!--     #                              ifelse(minuteExtract <= 9, 5, -->
+<!--     #                                     ifelse(minuteExtract <= 14, 10, -->
+<!--     #                                            ifelse(minuteExtract <= 19, 15, -->
+<!--     #                                                   ifelse(minuteExtract <= 24, 20, -->
+<!--     #                                                          ifelse(minuteExtract <= 29, 25, -->
+<!--     #                                                                 ifelse(minuteExtract <= 34, 30, -->
+<!--     #                                                                        ifelse(minuteExtract <= 39, 35, -->
+<!--     #                                                                               ifelse(minuteExtract <= 44, 40, -->
+<!--     #                                                                                      ifelse(minuteExtract <= 49, 45, -->
+<!--     #                                                                                             ifelse(minuteExtract <= 54, 50,55)))))))))))) %>% -->
+<!--   group_by(date, hourExtract, minuteCategory) %>% -->
+<!--   summarize(uniqueStudents = n_distinct(studentStudyId)) %>% -->
+<!--   mutate(percentCallingAtOnce = uniqueStudents/750, -->
+<!--          higherThan8Percent = ifelse(percentCallingAtOnce >= 0.08, 1, 0)) %>% -->
+<!--   ungroup() %>% -->
+<!--   group_by(date) %>% -->
+<!--   summarize(total10MinutePeriodsInDate = n(), -->
+<!--             averageStudents = round(mean(uniqueStudents))) -->
+
+<!-- datatable(cdrData_filter_simultaneousCalls) -->
+
+<!-- #write.table(cdrData_filter_simultaneousCalls, "cdrData_filter_simultaneousCalls.txt", row.names = F) -->
+
+
+
+
+<!-- # cdrData_reorg <- cdrData_filter_userInitiates %>% -->
+<!-- #   select(studentStudyId, everything()) %>% -->
+<!-- #   filter(inMichelsList == 1) -->
+<!-- # cdrData_reorg = as.data.table(cdrData_reorg) -->
+<!-- # cdrData_reorg$calldate = as.POSIXct(cdrData_reorg$calldate) -->
+<!-- # cdrData_reorg[, session_id:=.GRP, by = .(studentStudyId, calldate)] -->
+<!-- # cdrData_reorg[, join_time:=calldate] -->
+<!-- # setkey(cdrData_reorg, studentStudyId, join_time) -->
+<!-- #  -->
+<!-- # CIVdata_reorg <- UASdata_filter %>% -->
+<!-- #     select(studentStudyId, everything()) -->
+<!-- # CIVdata_reorg = as.data.table(CIVdata_reorg) -->
+<!-- # CIVdata_reorg$dateTime = as.POSIXct(CIVdata_reorg$dateTime) -->
+<!-- # CIVdata_reorg[, join_time:=dateTime] -->
+<!-- # setkey(CIVdata_reorg, studentStudyId, join_time) -->
+<!-- #  -->
+<!-- #  -->
+<!-- # data_v01 = cdrData_reorg[CIVdata_reorg, roll = T] # equivalent to website[paypal, roll = Inf] -->
+<!-- # data_v02 = CIVdata_reorg[cdrData_reorg, roll = T] # equivalent to website[paypal, roll = Inf] -->
+<!-- # five_minutes <- 60*5 #300 seconds -->
+<!-- # data_v03 = cdrData_reorg[CIVdata_reorg, roll = five_minutes]  -->
+<!-- #  -->
+<!-- # data_v04 = cdrData_reorg[CIVdata_reorg, roll = five_minutes, rollends = c(T, T)] # equivalent to website[paypal, roll = T, rollends = T] -->
+<!-- #  -->
+<!-- # write.csv(data_v04, file = "data_V04.csv", quote = F, row.names = F) -->
+<!-- #  -->
+<!-- #  -->
+<!-- # data_v05 = cdrData[paypal, roll = -Inf, rollends = c(F, T)] -->
+<!-- #  -->
+<!-- #  -->
+<!-- # simultaneousCalls = cdrData_filter_userInitiates %>% -->
+<!-- #   mutate() -->
+<!-- #  -->
+<!-- # five_minutes <- 60*5 # 12 hours = 60 sec * 60 min * 12 hours -->
+<!-- # cdrData[CIVData, roll = -five_minutes] -->
+
+<!-- ``` -->

@@ -1,0 +1,757 @@
+---
+title: "TRECC IVR Performance Analyses - 2019 Full Study"
+author: "Evelyn Yarzebinski, Benjamin Zinszer, Mackenzie Campbell"
+output:
+   html_document:
+     toc: true
+     toc_float: true
+     theme: united
+---
+
+##Note: This report filters for child users only.
+
+##0. Metadata
+```{r prep data, include = F}
+#clean up environment
+rm(list=ls())
+gc(verbose=TRUE)
+
+source("TRECC_dataPrep_fullStudy_HD.R")
+
+#now filter for children only for this report
+UASdata = UASdata %>%
+  filter(userRole == "child")
+
+interactionsData = interactionsData %>%
+  filter(userRole == "child")
+
+cdrData_autoGenerate = cdrData_autoGenerate %>%
+  filter(userRole == "child")
+
+cdrData_userCalls = cdrData_userCalls %>%
+  filter(userRole == "child")
+
+
+knitr::knit_hooks$set(
+   error = function(x, options) {
+     paste('\n\n<div class="alert alert-danger">',
+           gsub('##', '\n', gsub('^##\ Error', '**Error**', x)),
+           '</div>', sep = '\n')
+   },
+   warning = function(x, options) {
+     paste('\n\n<div class="alert alert-warning">',
+           gsub('##', '\n', gsub('^##\ Warning:', '**Warning**', x)),
+           '</div>', sep = '\n')
+   },
+   message = function(x, options) {
+     paste('\n\n<div class="alert alert-info">',
+           gsub('##', '\n', x),
+           '</div>', sep = '\n')
+   }
+)
+```
+
+###Report Generation
+```{r report time, echo = F}
+message(paste("report generated: ",Sys.time(),sep=""))
+
+```
+
+###Range of dates in the datasets
+```{r date range, echo = F}
+UAS_maxDate = max(UASdata$date)
+UAS_minDate = min(UASdata$date)
+CDR_maxDate = max(cdrData_userCalls$date)
+CDR_minDate = min(cdrData_userCalls$date)
+interactions_maxDate = max(interactionsData$date)
+interactions_minDate = min(interactionsData$date)
+UAS_nDays = UAS_maxDate - UAS_minDate + 1
+CDR_nDays = CDR_maxDate - CDR_minDate + 1
+interactions_nDays = interactions_maxDate - interactions_minDate + 1
+messageOutput = ifelse((UAS_nDays == CDR_nDays & CDR_nDays == interactions_nDays), 
+                 paste("The data ranges from ", UAS_minDate," to ", UAS_maxDate,". The span is ",UAS_nDays," days.", sep = ""),
+                 paste("Note: date ranges do not match. Check the user_answer_stats table and confirm whether students answered questions today."))
+
+message(messageOutput)
+#message(paste("user_answer_stats ranges from ", UAS_minDate," to ", UAS_maxDate,". The span is ",UAS_nDays," days.", sep = ""))
+#message(paste("cdr_ivr01 ranges from ", CDR_minDate, " to ", CDR_maxDate,". The span is ",CDR_nDays," days.", sep = ""))
+#message(paste("interactions ranges from ", interactions_minDate, " to ", interactions_maxDate,". The span is ",interactions_nDays," days.", sep = ""))
+
+```
+
+```{r saving, include=F}
+
+#UASdata = UASdata %>%
+#  select(-c(users.mobile_number, sessions.mobile_number, localPhoneNumber))
+
+#write.csv(UASdata,paste("~/Documents/IvoryCoast/data/UASdata_currentDataThrough_",UAS_maxDate,".csv",sep=""),row.names = FALSE)
+#write.xlsx(UASdata,paste("~/Documents/IvoryCoast/data/UASdata_currentDataThrough_",UAS_mostRecentDate,".xlsx",sep=""),row.names = FALSE)
+#write.csv(cdrData_filter,paste0("~/Documents/IvoryCoast/data/cdrData_currentDataThrough_",CDR_mostRecentDate,".csv"),row.names = FALSE)
+#write.xlsx(cdrData_filter,paste("~/Documents/IvoryCoast/data/cdrData_currentDataThrough_",CDR_mostRecentDate,".xlsx",sep=""),row.names = FALSE)
+```
+
+###Explore the data
+####Below is a general table that displays basic information for each token, by trialDifficulty and tokenDifficulty. On the far right of the table is the average accuracy on the first attempt vs last attempt. On 3-option questions, users were given 2 attempts. However, for 2-option question, users were given only one attempt, so the firstAcc / lastAcc columns in the 2-option table will be the same.
+###{.tabset}
+####Tokens in 2 option questions
+```{r Ben data exploration 2 options, echo = F}
+
+UASdata.tokenid_2 = UASdata.tokenid %>%
+  filter(options == 2)
+
+datatable(
+  UASdata.tokenid_2, 
+  extensions = 'FixedColumns',
+  rownames = FALSE,
+  options = list(
+    scrollX = TRUE,
+    scrollCollapse = TRUE
+))
+```
+
+####Tokens in 3 option questions
+```{r Ben data exploration 3 options, echo = F}
+
+UASdata.tokenid_3 = UASdata.tokenid %>%
+  filter(options == 3)
+
+datatable(
+  UASdata.tokenid_3, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+##1. Trial Summary
+###Exploratory tables
+####Originally, these were called "question templates" and then became "VOS" (voice output structure) or even "question frames" - basically, the raw question structure that different tokens are plugged into. This table is populated with the trials that children have experienced so far.
+
+###{.tabset}
+####Number of Questions Per Lesson
+```{r questions per lesson, echo = F}
+questionsPerLesson = UASdata %>%
+  group_by(UAS.unit_id, cmsQuestions.question_number, UAS.question_id, UAS.lesson_id) %>%
+  summarize(nQuestionsPerLesson = n_distinct(UAS.question_id))
+
+questionsPerLesson_V02 = questionsPerLesson %>%
+  group_by(UAS.unit_id, cmsQuestions.question_number) %>%
+  summarize(nLessons = n_distinct(UAS.lesson_id),
+            avgQuestionsPerLesson = round(mean(nQuestionsPerLesson),2),
+            lessonsWithLessThan5Q = length(nQuestionsPerLesson[nQuestionsPerLesson<=4]),
+            min = min(nQuestionsPerLesson),
+            max = max(nQuestionsPerLesson))
+
+datatable(
+  questionsPerLesson_V02, 
+  extensions = 'FixedColumns',
+  rownames = FALSE,
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+
+```
+
+####Unique Question Types and Performance
+```{r VOS performance, echo = F}
+questionPerformance = UASdata %>%
+  group_by(UAS.unit_id,cmsQuestions.question_number) %>%
+  summarize(nUsers = n_distinct(treccId_phoneId),
+            totalAttempts = sum(UAS.number_of_attempts),
+          avgCorrectnessOfQuestionAttempts = round(mean(UAS.correct),2))
+
+datatable(
+  questionPerformance, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+###Question List
+####The full list of all unique combinations of question_type and token A/B/C combinations that students have attempted
+####{.tabset}
+#####All Questions
+```{r question list, echo= F}
+questionList = UASdata %>%
+  group_by(UAS.unit_id, cmsQuestions.question_number,cmsQuestions.difficulty_level_trial,cmsQuestions.question_text) %>%
+  summarize(nStudents = n_distinct(treccId_phoneId),
+            nAttempts = sum(UAS.completed),
+            avgCorrectness = round(mean(UAS.correct),2))
+
+datatable(
+  questionList, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+#####Questions Repeated Multiple Days
+```{r, echo = F}
+questionList_Repeated = UASdata %>%
+  group_by(UAS.unit_id, treccId_phoneId,cmsQuestions.question_number,cmsQuestions.difficulty_level_trial,cmsQuestions.question_text) %>%
+  summarize(nDays = n_distinct(date),
+            nAttempts = sum(UAS.completed),
+            avgCorrectness = round(mean(UAS.correct),2)) %>%
+  filter(nDays > 1)
+
+datatable(
+  questionList_Repeated, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+###Summary of Question Distribution
+####This provides a quick debug reference.
+```{r question summary, echo = F}
+message(paste("Currently across all units:",n_distinct(questionList$cmsQuestions.question_text),"unique questions."))
+message(paste("There are",nrow(questionList),"rows in the Question List above."))
+
+```
+
+<!-- ###Does a single question have multiple difficulty values? -->
+<!-- ```{r} -->
+<!-- #output the questions with multiple difficulty levels. should this be? -->
+
+
+<!-- ``` -->
+
+###What is the accuracy range for a trial?
+####Two-option questions cannot be re-attempted, so FirstAcc = LastAcc.
+####Three-option questions can be re-attempted once, so FirstAcc != LastAcc.
+
+```{r, echo = F}
+datatable(
+  UASdata.trialid, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+###Comparing student performance across quartile splits on given unit/question types
+####The plot shows the quartile split of all questions a student receives (x axis) by the average % correct on that quartile of questions (y axis). Each combination of a unit and question in its own plot (each plot's title corresponds to "Unit#_Question#"). From Quartile 1 ("Q-1") to Quartile 4 ("Q-4""), we would hope to see the students performing better. If not, it may indicate question difficulty, technical difficulty, student unreadiness, etc.
+
+####{.tabset} 
+#####Table
+```{r performance first lesson vs current lesson, echo = F}
+
+performanceFirstLessonToCurrent = UASdata %>%
+  filter(UAS.unit_id != 5) %>%
+  group_by(treccId_phoneId, UAS.unit_id, cmsQuestions.question_number) %>%
+  mutate(questionAndUnit_concat = paste0(UAS.unit_id, "_",cmsQuestions.question_number),
+         questionMax = max(questionNumberPerUnit),
+         questionQuartile = questionNumberPerUnit / questionMax,
+    #questionQuantile = rank(questionNumberPerUnit)/length(unique(questionNumberPerUnit)),
+         questionQuartileGroup = ifelse(questionQuartile < .25, "Q-1", 
+                                        ifelse(questionQuartile >= .75, "Q-2", 
+                                               ifelse(questionQuartile >= .5, "Q-3", "Q-4")))) %>%
+  group_by(treccId_phoneId, questionAndUnit_concat,currentUnit,questionQuartileGroup) %>%
+  summarize(avgCorrectPercent = round(mean(UAS.correct),2),
+            sdCorrectPercent = round(sd(UAS.correct),2),
+            nQuestions = n_distinct(questionNumberOverall))
+  # group_by(questionAndUnit_concat, questionQuantileGroup) %>%
+  # summarize(avgCorrectPercent = round(mean(avgCorrectPercent),2),
+  #           sdCorrectPercent = round(sd(sdCorrectPercent),2),
+  #           avgNQuestions = round(mean(nQuestions),2),
+  #           sdNQuestions = round(sd(nQuestions),2),
+  #           nStudents = n_distinct(treccId_phoneId))
+
+datatable(
+  performanceFirstLessonToCurrent, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+#####Plot
+```{r, echo=F}
+ performanceFirstLessonToCurrent %>%
+  ggplot(aes(x = questionQuartileGroup, y = avgCorrectPercent)) +
+   geom_jitter(alpha = .2, width = .2) +
+   #stat_smooth() +
+   facet_wrap(~ questionAndUnit_concat, ncol = 5)
+```
+
+
+
+##2. Token Summary
+
+###Token Distribution
+####difficulty_level_token increases by 1 if certain phonemes don't exist in Attié and also if the token contains a certain syllable structure in a given question.
+####difficulty_level_trial increases by 1 for each shared phoneme (in the same position) between tokens in a given question.
+```{r token distribution, echo = F}
+tokensInQuestions = UASdata %>%
+  group_by(UAS.unit_id, cmsQuestions.question_number, cmsQuestions.difficulty_level_trial, cmsQuestions.difficulty_level_token) %>%
+  summarize(nStudents = n_distinct(treccId_phoneId),
+            totalUniqueQuestions = n_distinct(cmsQuestions.id),
+            totalAttempts = sum(UAS.completed),
+            uniqueTokenA = n_distinct(cmsQuestions.token_a_id),
+            uniqueTokenB = n_distinct(cmsQuestions.token_b_id),
+            uniqueTokenC = n_distinct(cmsQuestions.token_c_id))
+
+datatable(
+  tokensInQuestions, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+
+###Token Breakdown 
+####The full list of all tokens that have appeared in positions A, B, and C, as well as the number of appearances, students experiencing the token, and attempts, as well as average correctness of those attempts.
+####Sorting by avgAttemptCorrectness reveals a number of token_ids that have an average correctness below chance. This may indicate a number of different possibilities: the token is very difficult, the token is not being played so students are guessing because they hear silence, their environment was noisy and so they didn't hear the options, etc.
+
+###{.tabset}
+
+#### Token A List (correct answers)
+```{r token list A, echo = F}
+tokenDistribution_A = UASdata %>%
+  group_by(cmsQuestions.token_a_id, phonetics_auditory_token_a, spelling_visual_token_a) %>%
+  summarize(nStudents = n_distinct(treccId_phoneId),
+            uniqueQuestionTypesWithTokenA = n_distinct(cmsQuestions.id),
+            countAttempts = sum(UAS.completed),
+            avgAttemptCorrectness = round(mean(UAS.correct),2))
+
+
+datatable(
+  tokenDistribution_A, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+####Token B List (distractor)
+```{r token list B, echo = F}
+tokenDistribution_B = UASdata %>%
+  group_by(cmsQuestions.token_b_id, phonetics_auditory_token_b, spelling_visual_token_b) %>%
+  summarize(nStudents = n_distinct(treccId_phoneId),
+            uniqueQuestionsTypesWithTokenB = n_distinct(cmsQuestions.id),
+            countAttempts = sum(UAS.completed),
+            avgAttemptCorrectness = round(mean(UAS.correct),2))
+
+datatable(
+  tokenDistribution_B, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+  
+```
+
+####Token C List (distractor)
+```{r token list C, echo = F}
+tokenDistribution_C = UASdata %>%
+  group_by(cmsQuestions.token_c_id, phonetics_auditory_token_c, spelling_visual_token_c) %>%
+  summarize(nStudents = n_distinct(treccId_phoneId),
+            uniqueQuestionTypesWithTokenC = n_distinct(cmsQuestions.id),
+            countAttempts = sum(UAS.completed),
+            avgAttemptCorrectness = round(mean(UAS.correct),2))
+
+datatable(
+  tokenDistribution_C, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+###Distractor Token Co-Occurrence?
+####distractor_token value of "null" occurs on true/false questions only.
+```{r distractor token co-occurrence, echo = F}
+
+tokenDistribution_distractorBC = UASdata %>%
+  ungroup() %>%
+  group_by(cmsQuestions.distractor_tokens_V02, cmsQuestions.distractor_tokens_IPA, cmsQuestions.distractor_tokens_spelling) %>%
+  summarize(nStudents = n_distinct(treccId_phoneId),
+            uniqueQuestionTypesWithTokenPair = n_distinct(cmsQuestions.id),
+            countAttempts = sum(UAS.completed),
+            avgAttemptCorrectness = round(mean(UAS.correct),2))
+
+datatable(
+  tokenDistribution_distractorBC, 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+###Summary of Token Distribution
+####For quick debug.
+```{r token summary, echo = F}
+message(paste("Currently across all tokens:",nrow(tokenDistribution_A),"unique token As,",nrow(tokenDistribution_B), "unique token Bs, and",nrow(tokenDistribution_C),"unique token Cs have been used in at least one question with at least one student. There are",nrow(tokenDistribution_distractorBC),"unique combinations of Tokens B and C."))
+```
+
+###General token presentation
+####The histogram indicates the number of times tokens were presented. Bin width = 1, so the first bar represents the tokens presented only one time, etc. Tokens are not represented in this table if they have not been presented to any students.
+
+```{r, echo = F}
+
+UASdata.tokenid %>%
+  ggplot(aes(x = presentations)) +
+  geom_histogram(binwidth = 1)
+
+#original hist code from Ben
+#hist(UASdata.tokenid$presentations)
+tweight.mean <- round(mean(UASdata.tokenid$presentations),2)
+tweight.sd <- round(sd(UASdata.tokenid$presentations),2)
+
+# Low frequency tokens (code included for completeness, but commented out for now)
+# Spoiler, there aren't any (since the zero-frequency tokens don't get included)
+#UASdata.tokenid[UASdata.tokenid$presentations < tweight.mean-2*tweight.sd,]
+```
+
+
+###High-Frequency Token Presentation
+####Tokens appear here based on standard deviation of selection rates.
+
+```{r, echo = F}
+# High frequency tokens
+
+datatable(
+  UASdata.tokenid[UASdata.tokenid$presentations > tweight.mean+2*tweight.sd,], 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+
+```
+
+###Which tokens have low accuracy in first and last attempts?
+####Low accuracy on first attempts - When there are at least 5 presentations to average across, and accuracy is equal to or below chance.
+
+####{.tabset}
+#####Plot
+```{r, echo = F}
+# UASdata.tokenid %>%
+#   ggplot(aes(x = FirstAcc, col = options)) +
+#   geom_histogram(binwidth = .1 )
+
+ggplot() + 
+  geom_histogram(data = UASdata.tokenid_2, aes(x = as.numeric(FirstAcc), fill = "b"),binwidth = .1, alpha = 0.3) +
+  geom_histogram(data = UASdata.tokenid_3, aes(x = as.numeric(FirstAcc), fill = "y"),binwidth = .1, alpha = 0.3) +
+  scale_fill_manual(labels = c("2 options", "3 options"), values=c("#FF0033", "#0066FF")) +
+  labs(x = "FirstAcc") +
+  guides(fill=guide_legend(title="First Accuracy"))
+
+```
+
+#####Table
+```{r, echo = F}
+#hist(UASdata.tokenid$FirstAcc)
+# Low accuracy first-attempts: 
+# When there are at least 5 presentations to average across, and accuracy is equal to or below chance
+
+datatable(
+  UASdata.tokenid[UASdata.tokenid$zFirstAcc<=0 & UASdata.tokenid$presentations>=5,], 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+####Low accuracy on last attempts - When there are at least 5 presentations to average across, and accuracy is equal to or below chance.
+
+####{.tabset}
+#####Plot
+```{r, echo = F}
+# UASdata.tokenid %>%
+#   ggplot(aes(x = LastAcc)) +
+#   geom_histogram(binwidth = .1 )
+
+ggplot() + 
+  geom_histogram(data = UASdata.tokenid_2, aes(x = as.numeric(LastAcc), fill = "b"),binwidth = .1, alpha = 0.3) +
+  geom_histogram(data = UASdata.tokenid_3, aes(x = as.numeric(LastAcc), fill = "y"),binwidth = .1, alpha = 0.3) +
+  scale_fill_manual(labels = c("2 options", "3 options"), values=c("#FF0033", "#0066FF")) +
+  labs(x = "LastAcc") +
+  guides(fill=guide_legend(title="Last Accuracy"))
+```
+
+#####Table
+```{r, echo = F}
+#hist(UASdata.tokenid$LastAcc)
+# Low accuracy last-attempts tokens:
+# When there are at least 5 presentations to average across, and accuracy is near or below chance
+# Even some greater-than-chance results included, because they should be learnable by 3rd attempt
+
+datatable(
+  UASdata.tokenid[UASdata.tokenid$zLastAcc<=1 & UASdata.tokenid$presentations>=5,], 
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+
+```
+
+
+
+
+
+###Does token difficulty rating accurately predict first- or last-attempt performance? 
+####First attempt includes 2- and 3-option questions. Last attempt includes only 3-option questions.
+###{.tabset}
+
+####First Attempt (difficulty)
+
+```{r, echo = F}
+cor.test(UASdata.tokenid$tokenDifficulty, UASdata.tokenid$zFirstAcc,weights=UASdata.tokenid$presentations)
+
+```   
+ 
+####Last Attempt (learnability)
+```{r, echo = F}
+cor.test(UASdata.tokenid_3$tokenDifficulty, UASdata.tokenid_3$zLastAcc,weights=UASdata.tokenid$presentations)
+```
+
+##3. Syllable analysis
+###Syllable performance by options
+####Child accuracy on the syllable structure of token A (the correct answer). Compare the syllable structure by options to see children's accuracy in 2- or 3-option questions.
+```{r, echo = F}
+# Count the number of total presentations for each syllable structure
+# Check the difficulty and learnability of each of the presented syllable structures
+#UASdata.syllable <- UASdata.tokenid.ALLtokens %>%
+UASdata.syllable <- UASdata.tokenid %>%
+  ungroup() %>%
+  group_by(token_a_syllable_structure, options) %>%
+  summarise(
+    presentations = sum(presentations,na.rm=TRUE),
+    FirstAcc = round(mean(FirstAcc,na.rm=TRUE),2),
+    LastAcc = round(mean(LastAcc,na.rm=TRUE),2)
+  )
+
+datatable(
+  UASdata.syllable, 
+  extensions = 'FixedColumns',
+  rownames = FALSE,
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+###Syllable structure and token difficulty
+####Breakdown of syllables experienced by children. The percent under each syllable structure indicates the percent of the attempts that include that structure.
+```{r, echo = F}
+UASdata.tokenid$token_a_syllable_structure = as.factor(UASdata.tokenid$token_a_syllable_structure)
+UASdata.tokenid$token_a_syllable_structure <- relevel(UASdata.tokenid$token_a_syllable_structure,'CVC')
+#unique(UASdata.tokenid$token_a_syllable_structure)
+round(prop.table(table(UASdata.tokenid$token_a_syllable_structure)),2)
+
+```
+
+####A basic linear regression of first attempt ~ syllableStructure and last attempt ~ syllableStructure, with both weighted by the number of presentations. The first attempt includes 2- and 3-option questions, whereas the last attempt includes only 3-option questions. 
+####{.tabset}
+#####First attempt
+```{r, echo = F}
+# Perform ANOVA to determine whether syllable structures significantly differ from each other in first-attempt accuracy
+#TODO do I use zFirstAcc or FirstAcc? z is z score, right?
+syllable_effect_F <- lm(FirstAcc~token_a_syllable_structure,UASdata.tokenid,weight=UASdata.tokenid$presentations)
+anova(syllable_effect_F)
+```
+
+#####Last attempt
+```{r, echo = F}
+# Perform ANOVA to determine whether syllable structures significantly differ from each other in last-attempt accuracy
+syllable_effect_L <- lm(LastAcc~token_a_syllable_structure,UASdata.tokenid_3,weight=UASdata.tokenid_3$presentations)
+anova(syllable_effect_L)
+```
+
+<!-- # ```{r} -->
+<!-- # summary(lmer(UAS.correct ~ UAS.unit_id + cmsQuestions.difficulty_level_token + cmsQuestions.difficulty_level_trial + (1|treccId_phoneId), data = UASdata)) -->
+<!-- #  -->
+<!-- # ``` -->
+
+##4. Token Type Analysis
+
+###Does token type significantly affect the token difficulty?
+####List the proportion of current token types
+```{r, echo = F}
+UASdata.tokenid$token_a_type = as.factor(UASdata.tokenid$token_a_type)
+round(prop.table(table(UASdata.tokenid$token_a_type)),2)
+message("note: 1 = word; 2 = syllable; 3 = phoneme")
+```
+
+####A basic linear regression of first attempt ~ tokenType and last attempt ~ tokenType, with both weighted by the number of presentations. The first attempt includes 2- and 3-option questions, whereas the last attempt includes only 3-option questions. 
+####{.tabset}
+#####First attempt
+```{r, echo = F}
+# Perform ANOVA to determine whether token structures significantly differ from each other in first-attempt accuracy
+#TODO do I use zFirstAcc or FirstAcc? z is z score, right?
+token_effect_F <- lm(FirstAcc~token_a_type,UASdata.tokenid,weight=UASdata.tokenid$presentations)
+summary(token_effect_F)
+```
+
+#####Last attempt
+```{r, echo = F}
+# Perform ANOVA to determine whether syllable structures significantly differ from each other in last-attempt accuracy
+token_effect_L <- lm(LastAcc~token_a_type,UASdata.tokenid_3,weight=UASdata.tokenid_3$presentations)
+summary(token_effect_L)
+```
+
+##5. Unit 1 Analysis
+
+###Who passed Unit 1?
+####The table below displays the four trials for unit 1 and the average questions students attempted
+```{r, echo = F}
+
+#this makes the raw data one line for each attempt
+UASdata_learningCurve_trial = UASdata %>%
+  select(treccId_phoneId, UAS.unit_id, cmsQuestions.trial_id, cmsQuestions.question_number, UAS.created_at, UAS.id, UAS.correct) %>%
+  mutate(errorRate = 1-UAS.correct) %>%
+  arrange(treccId_phoneId, cmsQuestions.trial_id, UAS.created_at) %>%
+  group_by(treccId_phoneId, cmsQuestions.trial_id, cmsQuestions.question_number) %>%
+
+#need to cumsum a column of "new trial"
+  mutate(opportunity = row_number()) %>%
+  arrange(treccId_phoneId, cmsQuestions.trial_id, opportunity) %>%
+  mutate(rollingAverage = cumsum(UAS.correct) / seq_along(opportunity),
+         promotionReady = ifelse(rollingAverage >= .6 & opportunity >= 15, 1, 0)) %>%
+  ungroup() %>%
+  group_by(treccId_phoneId) %>%
+  mutate(maxUnit = max(UAS.unit_id),
+         passedUnit1 = as.character(ifelse(maxUnit > 1, 1, 0))) %>%
+  ungroup() %>%
+  group_by(UAS.unit_id, cmsQuestions.trial_id, opportunity) %>%
+  mutate(userCountPerOpportunity = n_distinct(treccId_phoneId)) %>%
+  ungroup()
+
+UASdata_unit1Promotion = UASdata_learningCurve_trial %>%
+  filter(passedUnit1 == 1,
+         UAS.unit_id == 1) %>%
+  arrange(treccId_phoneId, cmsQuestions.trial_id, opportunity) %>%
+  mutate(promotionPoint = ifelse(treccId_phoneId == lag(treccId_phoneId) & cmsQuestions.trial_id == lag(cmsQuestions.trial_id) & promotionReady == 1 & lag(promotionReady == 0),1,0)) %>%
+  filter(promotionPoint == 1) %>%
+  mutate(falsePromotion = ifelse(treccId_phoneId == lag(treccId_phoneId) & cmsQuestions.trial_id == lag(cmsQuestions.trial_id),1,0)) %>%
+  filter(falsePromotion != 1) %>%
+  group_by(UAS.unit_id, cmsQuestions.trial_id) %>%
+  summarize(avgQuestionsBeforePromotion = round(mean(opportunity),2),
+            sdQuestionsBeforePromotion = round(sd(opportunity),2),
+            avgMastery = round(mean(rollingAverage),2),
+            sdMastery = round(sd(rollingAverage),2),
+            nStudents = n_distinct(treccId_phoneId))
+
+datatable(
+  UASdata_unit1Promotion,
+  rownames = FALSE,
+  filter = "top",
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+
+
+#this makes the raw data one line for each opportunity
+UASdata_learningCurve_trial_oneLinePerOpp = UASdata_learningCurve_trial %>%
+  #select(treccId_phoneId, UAS.unit_id, cmsQuestions.trial_id, UAS.created_at, UAS.id, UAS.correct) %>%
+  #arrange(treccId_phoneId, cmsQuestions.trial_id, UAS.created_at) %>%
+  group_by(passedUnit1, treccId_phoneId, cmsQuestions.trial_id, opportunity) %>%
+  mutate(errorRate = mean(errorRate)) %>%
+   ungroup()
+  # group_by(treccId_phoneId) %>%
+  # mutate(maxUnit = max(as.numeric(UAS.unit_id)),
+  #        passedUnit1 = ifelse(maxUnit > 1, 1, 0)) %>%
+  # ungroup() %>%
+  # group_by(passedUnit1, UAS.unit_id, cmsQuestions.trial_id, opportunity) %>%
+  # summarize(errorRate = 1-mean(UAS.correct),
+  #           userCountPerOpportunity = n_distinct(treccId_phoneId)) %>%
+  # ungroup()
+
+```
+
+###Learning Curves
+####Data filtered for unit 1 content with 10+ child users per opportunity.
+###{.tabset}
+####plot
+```{r, echo = F}
+# #ggplotly(
+# UASdata_learningCurve_trial %>%
+#   filter(UAS.unit_id == 1,
+#          userCountPerOpportunity >= 10) %>%
+#          #opportunity <= 50) %>%
+#   ggplot(aes(x = opportunity,
+#              y = errorRate,
+#              col = passedUnit1
+#              )) +
+#   ylim(0, 1) +
+#   labs(x = "opportunity count", y = "avg error rate") +
+#   facet_wrap(~ cmsQuestions.trial_id, ncol = 2) +
+#   #geom_smooth()
+#   geom_smooth(
+#     #aes(text = paste0('n_students: ', userCountPerOpportunity))
+#     )
+#   #                                         '<br>',
+#   #                                         'read: ',,
+# #)
+
+suppressWarnings(
+ggplotly(
+UASdata_learningCurve_trial_oneLinePerOpp %>%
+  ungroup() %>%
+  filter(UAS.unit_id == 1) %>%
+         #userCountPerOpportunity >= 10) %>%
+         #opportunity <= 50) %>%
+  ggplot(
+    aes(
+      x = opportunity,
+      y = errorRate,
+      col = passedUnit1
+      )
+    ) +
+  ylim(0, 1) +
+  labs(x = "opportunity count", y = "avg error rate", col = "passed\nunit 1") +
+  stat_smooth(
+    method = "auto" 
+    #text = paste("n_users: ", unique(UASdata_learningCurve_trial_oneLinePerOpp$userCountPerOpportunity))
+) +
+    #aes(text = paste0("children at opportunity count ",opportunity, ": ",n_distinct(treccId_phoneId[UASdata_learningCurve_trial$opportunity == opportunity])))
+  facet_wrap(~ cmsQuestions.trial_id, ncol = 2)
+  #ggplotly(tooltip = "text")
+)
+)
+
+```
+
+####table
+```{r, echo = F}
+datatable(
+  UASdata_learningCurve_trial %>%
+  filter(UAS.unit_id == 1,
+         userCountPerOpportunity >= 10),
+  rownames = FALSE,
+  filter = "top",
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+
+```
+
+
+
+
+
+
+

@@ -1,0 +1,2679 @@
+---
+title: "TRECC IVR Usage Analyses - 2019 Full Study"
+author: "Evelyn Yarzebinski"
+output:
+   html_document:
+     toc: true
+     toc_float: true
+     theme: united
+     code_folding: "hide"
+---
+
+##0. Metadata
+```{r prep data, include = F}
+
+#TODO notes for future dev:
+# fix alluvial flow diagram [maybe concat by village, or by ...? ]
+# Make the scatterplot saturation for lessons
+# Scatterplot - of calls and questions (vikram)
+# Histogram - # of users who have attempted and mastered each trial (start with binary, later move to attempts) (michael)
+# Performance: work through Ben's assumptions on 2 / 3 option questions
+#change the avg / sd summaries to weekly bar graphs for longitudinal view (keep overall summaries)
+#check weeks per user... calls and questions.
+
+#clean up environment
+rm(list=ls())
+gc(verbose=TRUE)
+
+#run cleaning script
+suppressWarnings(suppressMessages(source("TRECC_dataPrep_fullStudy_HD.R")))
+
+#duplicateOutput = ifelse(nrow(dupes_UAS) == 0 & nrow(dupes_intLesson) == 0, "", paste("There are duplicates rows in the data; please run #TRECC_dataPrep_fullStudy_HD.R outside of this chunk and check `dupes_intLesson` and `dupes_UAS`"))
+#message(duplicateOutput)
+
+#clean up some objects from the cleaning script not needed in the usage pipeline
+#rm(dupes_intLesson)
+#rm(dupes_UAS)
+rm(adultPhoneMapping)
+rm(cdr_callNumber)
+rm(cdrData)
+rm(interactionsData_cdrUniqueId_childIDMapping)
+rm(interactionsData_childID_adultMapping)
+#rm(interactionsData_lessons)
+rm(UAS_lessonDateReset)
+rm(UASdata.descriptives)
+rm(UASdata.firstattempt)
+rm(UASdata.lastattempt)
+rm(UASdata.questionid)
+rm(UASdata.tokenid)
+rm(UASdata.trialid)
+rm(usersCalled_cdr)
+#rm(childUsers)
+
+knitr::knit_hooks$set(
+   error = function(x, options) {
+     paste('\n\n<div class="alert alert-danger">',
+           gsub('##', '\n', gsub('^##\ Error', '**Error**', x)),
+           '</div>', sep = '\n')
+   },
+   warning = function(x, options) {
+     paste('\n\n<div class="alert alert-warning">',
+           gsub('##', '\n', gsub('^##\ Warning:', '**Warning**', x)),
+           '</div>', sep = '\n')
+   },
+   message = function(x, options) {
+     paste('\n\n<div class="alert alert-info">',
+           gsub('##', '\n', x),
+           '</div>', sep = '\n')
+   }
+)
+```
+
+###Report Generation Time
+```{r report time, echo = F}
+message(paste0("report generated: ",Sys.time()))
+
+```
+
+###Range of dates in the datasets
+```{r date range, echo = F}
+UAS_maxDate = max(UASdata$date)
+UAS_minDate = min(UASdata$date)
+CDR_maxDate = max(cdrData_userCalls$date)
+CDR_minDate = min(cdrData_userCalls$date)
+interactions_maxDate = max(interactionsData$date)
+interactions_minDate = min(interactionsData$date)
+UAS_nDays = UAS_maxDate - UAS_minDate + 1
+CDR_nDays = CDR_maxDate - CDR_minDate + 1
+interactions_nDays = interactions_maxDate - interactions_minDate + 1
+messageOutput = ifelse((UAS_nDays == CDR_nDays & CDR_nDays == interactions_nDays), 
+                 paste("The data ranges from ", UAS_minDate," to ", UAS_maxDate,". The span is ",UAS_nDays," days.", sep = ""),
+                 paste("Note: date ranges do not match. Check the user_answer_stats table and confirm whether students answered questions today."))
+
+message(messageOutput)
+#message(paste("user_answer_stats ranges from ", UAS_minDate," to ", UAS_maxDate,". The span is ",UAS_nDays," days.", sep = ""))
+#message(paste("cdr_ivr01 ranges from ", CDR_minDate, " to ", CDR_maxDate,". The span is ",CDR_nDays," days.", sep = ""))
+#message(paste("interactions ranges from ", interactions_minDate, " to ", interactions_maxDate,". The span is ",interactions_nDays," days.", sep = ""))
+
+```
+
+```{r saving, echo=F}
+#UASdata = UASdata %>%
+#  select(-c(users.mobile_number, sessions.mobile_number, localPhoneNumber))
+
+#write.csv(UASdata,paste0("UASdata_",UAS_maxDate,".csv"), row.names = FALSE)
+#write.xlsx(UASdata,paste("~/Documents/IvoryCoast/data/CIVData_currentDataThrough_",UAS_maxDate,".xlsx",sep=""),row.names = FALSE)
+#write.csv(cdrData_filter,paste0("~/Documents/IvoryCoast/data/cdrData_currentDataThrough_",CDR_maxDate,".csv"),row.names = FALSE)
+#write.xlsx(cdrData_filter,paste("~/Documents/IvoryCoast/data/cdrData_currentDataThrough_",CDR_maxDate,".xlsx",sep=""),row.names = FALSE)
+```
+
+##1. Usage Summary
+<!-- ###Explore the villages where users are accessing question and lesson content -->
+<!-- ####Users included in this summary are both study phones and non-study phones. In this analysis, these two types of users are aggregated into "n_users". -->
+```{r student unit performance table, echo = F}
+# #perfomance per student per unit
+Qcount_unit_questionType_all = as_tibble(UASdata) %>%
+  #filter(!is.na(userTrialMastery.questions)) %>%
+  group_by(
+    village,
+    school,
+    village_school,
+    treccId_phoneId,
+    redcapId,
+    userRole,
+    UAS.unit_id,
+    currentUnit,
+    cmsQuestions.trial_id,
+    userTrialMastery.questions
+    ) %>%
+  summarize(#uniqueQuestions = n_distinct(cmsQuestions.question_text),
+            eneza_questionsAttempted = as.numeric(as.character(unique(userTrialMastery.questions))),
+            calc_questionsAttempted = n_distinct(concat_lessonQuestion),
+            calc_attemptCount = n(),
+            daysPerTrial = n_distinct(date),  #TODO fix this, they could do multiple trials per day...
+            nCallsPerTrial = n_distinct(cdr.uniqueId),
+            eneza_trialMasteryScore = as.numeric(as.character(unique(userTrialMastery.trial_mastery_score))),
+            calc_trialMasteryScore = round(mean(UAS.correct),2),
+            trialComplete = ifelse(calc_questionsAttempted >= 100, 1,
+                                   ifelse(calc_questionsAttempted >=15 & calc_trialMasteryScore >= .60, 1, 0)),
+            maxDate = max(date),
+            minWeek = min(weekNumber_user),
+            maxWeek = max(weekNumber_user),
+            n_daysSinceLastLesson = Sys.Date() - maxDate
+            )
+
+# Qcount_unit = as_tibble(Qcount_unit_type) %>%
+#   #filter(!is.na(eneza_questionsAttempted)) %>%
+#   group_by(
+#     treccId_phoneId,
+#     userRole,
+#     UAS.unit_id,
+#     currentUnit
+#     #UAS.question_id,
+#     #userTrialMastery.questions,
+#     #eneza_trialMasteryScore
+#     ) %>%
+#   summarize(eneza_questionsAttempted2 = n_distinct(userTrialMastery.questions),
+#             nQuestionTypes = n_distinct(cmsQuestions.trial_id),
+#             total_questionsAttempted = sum(calc_questionsAttempted),
+#             avg_daysPerTrial = mean(daysPerTrial),
+#             avg_callsPerTrial = mean(nCallsPerTrial),
+#             eneza_trialMasteryScore2 = mean(eneza_trialMasteryScore),
+#             avg_trialMasteryScore = mean(calc_trialMasteryScore,2),
+#             maxDate = max(maxDate),
+#             n_daysSinceLastLesson = Sys.Date() - maxDate
+#   )
+
+# Qcount_unit_agg = Qcount_unit_type %>%
+#   group_by(
+#     village,
+#     UAS.unit_id,
+#     currentUnit,
+#     cmsQuestions.trial_id
+#   ) %>%
+#   summarize(n_users = n_distinct(treccId_phoneId)
+#             #avg_callsPerUnit = sum(avg_callsPerTrial)
+#             ##n_uniqueQuestions = sum(uniqueQuestions),
+#             ##eneza_questionsAttempted = mean(eneza_questionsAttempted),
+#             #avg_questionsAttempted = mean(eneza_questionsAttempted),
+#             ##daysCalledIVR_agg = mean(daysCalledIVR),
+#             ##eneza_masteryScore = mean(eneza_masteryScore),
+#             #avg_masteryScore = round(mean(eneza_trialMasteryScore),2)
+#             )
+
+#Qcount_unit_expand = as.tibble(Qcount_unit)
+
+#Qcount_unit_expand = Qcount_unit_expand %>%
+#  tidyr::anti_join(Qcount_unit_expand)
+
+# tidyr::expand(nesting(studyPhoneId), UAS.unit_id, cmsQuestions.question_number)
+
+#Qcount_unit_spread = spread(Qcount_unit, cmsQuestions.question_number, calc_questionsAttempted)
+#Qcount_unit_spread[is.na(Qcount_unit_spread)] <- 0
+#Qcount_unit_gather = gather(Qcount_unit_spread, studyPhoneId,unitId,daysCalledIVR,calc_masteryScore,1:7)
+
+#Qcount_unit_studentMaxUnit = Qcount_unit %>%
+#  group_by(studyPhoneId) %>%
+#  summarize(currentUnit = max(UAS.unit_id))
+
+# datatable(
+#   Qcount_unit_agg,
+#   extensions = 'FixedColumns',
+#   options = list(
+#   scrollX = TRUE,
+#   scrollCollapse = TRUE
+# ))
+```
+
+```{r plot of current progress, echo = F}
+Qcount_unit_questionType_all <- Qcount_unit_questionType_all %>%
+  ungroup() %>%
+  group_by(treccId_phoneId,
+           redcapId,
+           userRole,
+           village,
+           school,
+           village_school,
+           UAS.unit_id,
+           currentUnit,
+           cmsQuestions.trial_id,
+           calc_questionsAttempted,
+           calc_trialMasteryScore) %>%
+  summarize(n_trialsComplete = sum(trialComplete),
+            n_daysSinceLastLesson = min(n_daysSinceLastLesson),
+            recentWeek = max(maxWeek))
+  #mutate(achievedQuestions = ifelse(calc_questionsAttempted >= 100, 1,
+  #                                  ifelse(calc_questionsAttempted >= 15, 1, 0)),
+  #       achievedMastery = ifelse(calc_trialMasteryScore >= 0.60, 1, 0))
+  ##summarize(achievedMastery_mean = mean(achievedMastery)) %>%
+  ##mutate(achievedMastery_mean = NULL)
+
+#turn the NAs in achievedMastery_mean into 0s.
+Qcount_unit_questionType_all[is.na(Qcount_unit_questionType_all)] <- 0
+
+Qcount_unit_questionType_current = Qcount_unit_questionType_all %>%
+  group_by(treccId_phoneId, userRole, UAS.unit_id, currentUnit) %>%
+  summarize(avg_mastery = round(mean(calc_trialMasteryScore),2),
+            total_questionsAttempted = sum(calc_questionsAttempted),
+            #nTrials_achievedMastery = sum(achievedMastery),
+            #nTrials_achievedQuestions = sum(achievedQuestions)
+            n_trialsComplete = sum(n_trialsComplete),
+            n_daysSinceLastLesson = as.numeric(min(n_daysSinceLastLesson)),
+            recentWeek = max(recentWeek)
+            ) %>%
+  ungroup() %>%
+  mutate(readyForPromotion = ifelse(UAS.unit_id == 1 & n_trialsComplete == 4, 1,
+                                ifelse(UAS.unit_id == 2 & n_trialsComplete == 4, 1,
+                                       ifelse(UAS.unit_id == 3 & n_trialsComplete == 6, 1,
+                                              ifelse(UAS.unit_id == 4 & n_trialsComplete == 7, 1, 
+                                                     ifelse(UAS.unit_id == 5 & n_trialsComplete == 5, 1,
+                                                            ifelse(UAS.unit_id == 6 & n_trialsComplete == 6, 1,
+                                                                   ifelse(UAS.unit_id == 7 & n_trialsComplete == 9, 1,
+                                                                          ifelse(UAS.unit_id == 8 & n_trialsComplete == 7, 1,0))))))))) %>%
+  filter(currentUnit == 1) %>%
+  mutate(UAS.unit_id = paste0("Unit ",UAS.unit_id),
+         n_trialsComplete = as.character(n_trialsComplete),
+         quartCalc_daysSinceLastLesson = n_daysSinceLastLesson / max(n_daysSinceLastLesson),
+         quart_daysSinceLastLesson = ifelse(quartCalc_daysSinceLastLesson < .25, "Q1", 
+                                        ifelse(quartCalc_daysSinceLastLesson >= .75, "Q4", 
+                                               ifelse(quartCalc_daysSinceLastLesson >= .5, "Q3", "Q2"))),
+         max_Q1 = max(n_daysSinceLastLesson[quart_daysSinceLastLesson == "Q1"]),
+         max_Q2 = max(n_daysSinceLastLesson[quart_daysSinceLastLesson == "Q2"]),
+         max_Q3 = max(n_daysSinceLastLesson[quart_daysSinceLastLesson == "Q3"]),
+         max_Q4 = max(n_daysSinceLastLesson[quart_daysSinceLastLesson == "Q4"]),
+         min_Q1 = min(n_daysSinceLastLesson[quart_daysSinceLastLesson == "Q1"]),
+         min_Q2 = min(n_daysSinceLastLesson[quart_daysSinceLastLesson == "Q2"]),
+         min_Q3 = min(n_daysSinceLastLesson[quart_daysSinceLastLesson == "Q3"]),
+         min_Q4 = min(n_daysSinceLastLesson[quart_daysSinceLastLesson == "Q4"])
+         ) %>%
+  filter(userRole == "child")
+
+# #ggplot where color = readyForPromotion
+# ggplot(data=Qcount_unit_questionType_current,aes(x=as.numeric(total_questionsAttempted),y=as.numeric(avg_mastery),col = readyForPromotion)) + 
+#   geom_point() +
+#   labs(x = "questionsAttempted", y = "masteryScore") +
+#   facet_wrap(~ UAS.unit_id, ncol = 4) +
+#   scale_color_manual(values=c("grey56","red3"))
+
+#ggplot for how many questions each user did
+```
+
+###Questions per Child User
+####This histogram indicates the overall engagement pattern of child users, with the total questions attempted across all units along the x axis, and the count of child users on the y axis. It appears that most child users are attempting only a few questions.
+```{r, echo = F}
+
+# #code for Ben to check median splits. Run only by request from him, not daily.
+# sum = Qcount_unit_questionType_all %>%
+#   filter(userRole == "child") %>%
+#   ungroup() %>%
+#   group_by(treccId_phoneId, redcapId) %>%
+#   summarize(totalQuestions = sum(calc_questionsAttempted)) %>%
+#   ungroup() %>%
+#   mutate(aboveMedian = ifelse(totalQuestions >= median(totalQuestions), 1, 0))
+# 
+# write.csv(sum,"childUsers_all_forBen_20190509.csv", row.names = F)
+
+
+Qcount_unit_questionType_all_graph = Qcount_unit_questionType_all %>%
+  filter(userRole == "child") %>%                       
+  group_by(treccId_phoneId) %>%
+  ungroup() %>%
+  group_by(treccId_phoneId) %>%
+  summarize(totalQuestions = sum(calc_questionsAttempted))
+
+ggplot(Qcount_unit_questionType_all_graph, aes(x=totalQuestions)) + 
+  geom_histogram(binwidth = 5) +
+  labs(x = "questionsAttempted", y = "count of child users") +
+  #facet_wrap(~ UAS.unit_id, ncol = 4) +
+  ggtitle("Questions attempted by each unique child")
+  #scale_color_manual(values=c("grey56","#7CAE00","#00BFC4", "#C77CFF", "#F8766D", "tan1"))
+  
+```
+
+
+###Current child progress in unit
+####The Trial Mastery tab shows the current unit for each child (eg "1" is unit 1). The color of the dot signifies the trials that a student has successfully mastered within a given unit. 
+####The Days Since Last Call tab shows the current unit for each child (eg "1" is unit 1). The color of the dot signifies the quartile range of their most recent call. The quartile range is defined below the graph.
+
+####{.tabset}
+#####Trial Mastery
+```{r, echo = F}
+#ggplot where color = allTrialId
+#ggplotly(
+  ggplot(data=Qcount_unit_questionType_current,aes(x=as.numeric(total_questionsAttempted),y=as.numeric(avg_mastery))) + 
+  #geom_point(aes(alpha = -n_daysSinceLastLesson)) +
+  geom_jitter(aes(col = n_trialsComplete), width = 1) +
+  #geom_point() +
+  labs(x = "Questions Attempted", y = "Mastery Score", col = "Trials \nComplete") +
+  facet_wrap(~ UAS.unit_id, ncol = 4) +
+  ggtitle("Child users: mastery & attempted questions - number of complete trials") +
+   #guides(fill=guide_legend(title="Trials Complete")) +
+  scale_color_manual(values=c("grey56","#53B400","tan1","#C77CFF","#F8766D","#00BFC4"))
+#)
+
+```
+
+#####Most Recent Study Week of Last Call
+```{r, echo = F}
+
+ggplot(data=Qcount_unit_questionType_current,aes(x=total_questionsAttempted,y=avg_mastery)) + 
+  #geom_jitter(aes(col = quart_daysSinceLastLesson), width = 1) +
+  geom_jitter(aes(col = recentWeek), width = 1) +
+  labs(x = "questionsAttempted", y = "masteryScore") +
+  facet_wrap(~ UAS.unit_id, ncol = 4) +
+  ggtitle("Mastery & attempted questions: most recent study week attempting questions")
+  ##scale_color_continuous(low = "grey90", high = "grey0")
+  #scale_color_manual(values=c("slateblue1","tan1","tomato", "limegreen"))
+
+# message("n days in Q1 is between: ", min(Qcount_unit_questionType_current$min_Q1), " and ", max(Qcount_unit_questionType_current$max_Q1), " days.")
+# message("n days in Q2 is between: ", min(Qcount_unit_questionType_current$min_Q2), " and ", max(Qcount_unit_questionType_current$max_Q2), " days.")
+# message("n days in Q3 is between: ", min(Qcount_unit_questionType_current$min_Q3), " and ", max(Qcount_unit_questionType_current$max_Q3), " days.")
+# message("n days in Q4 is between: ", min(Qcount_unit_questionType_current$min_Q4), " and ", max(Qcount_unit_questionType_current$max_Q4), " days.")
+
+```
+
+
+###User Call Pattern, by village and school
+
+#####Call pattern of users, by village and school. The users (adult + child) on the y axis are sorted by the date of their first call. Click on a tab for more information. Below each graph is a summary of  of callers in a village, the total number of children 
+```{r, echo = F}
+# uniqueVillageSchool = UASdata %>%
+#   filter(village != "unknown") %>%
+#   #filter(userRole == "child") %>%
+#   group_by(village_school) %>%
+#   summarize(n = n()) %>%
+#   mutate(n = NULL)
+# 
+# message(uniqueVillageSchool)
+
+```
+
+```{r user usage scatterplot, echo = F}
+
+Qcount_day = UASdata %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId, 
+           userRole, 
+           village,
+           school,
+           village_school,
+           UAS.unit_id, 
+           UAS.lesson_id, 
+           date) %>%
+  summarize(uniqueQuestions_lesson = n_distinct(cmsQuestions.id),
+            correctQuestions_lesson = sum(UAS.correct),
+            lessonComplete = ifelse(uniqueQuestions_lesson >= 5, 1, 0)) %>%
+  ungroup() %>%
+  mutate(UAS.unit_id = as.factor(UAS.unit_id)) %>%
+  group_by(treccId_phoneId, 
+           userRole, 
+           village, 
+           school,
+           village_school,
+           UAS.unit_id, 
+           date) %>%
+  summarize(lessonCompletionRate = ifelse(mean(lessonComplete) == 1, 1, 0)) %>%
+  ungroup()
+
+suppressWarnings({  
+interactionsCount_day = interactionsData %>%
+  mutate(studyPhoneId = as.factor(studyPhoneId),
+         CONCAT_treccIdStudyId_studyPhoneId_userRole_village_date = paste0(treccId_phoneId, studyPhoneId, userRole, village, date)) %>%
+  group_by(treccId_phoneId, studyPhoneId, userRole, village, school, village_school, date, CONCAT_treccIdStudyId_studyPhoneId_userRole_village_date) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         callMade = 1) %>%
+    ungroup()
+})
+
+#interactionsCount_day = interactionsCount_day[gtools::mixedorder(interactionsCount_day$studyPhoneId),]
+
+UASCount_day = UASdata %>%
+  mutate(studyPhoneId = as.character(studyPhoneId),
+         CONCAT_treccIdStudyId_studyPhoneId_userRole_village_date = paste0(treccId_phoneId, studyPhoneId, userRole, village, date)) %>%
+  group_by(CONCAT_treccIdStudyId_studyPhoneId_userRole_village_date) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         questionsAttempted = "1") %>%
+  select(CONCAT_treccIdStudyId_studyPhoneId_userRole_village_date, questionsAttempted)
+
+suppressWarnings({  
+interactionsCount_day = interactionsCount_day %>%
+  left_join(UASCount_day, by = c("CONCAT_treccIdStudyId_studyPhoneId_userRole_village_date")) 
+})
+
+interactionsCount_day[c("questionsAttempted")][is.na(interactionsCount_day[c("questionsAttempted")])] <- "0"
+interactionsCount_day$questionsAttempted = as.factor(interactionsCount_day$questionsAttempted)
+
+#set absolute order for graph shapes, whether adults and children appear in a given school.
+#24 is empty triangle
+#21 is empty circle
+shapes <- c(21, 24, 21, 24)
+names(shapes) <- unique(interactionsData$userRole)
+
+
+```
+
+###Affery
+###{.tabset}
+####Affery_2
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+# suppressMessages(print(
+#   Qcount_day %>%
+#     filter(village == "Affery") %>%
+#     ggplot(aes(x=date,y=treccId_phoneId,group=treccId_phoneId, color=UAS.unit_id)) +
+#     geom_path() +
+#     ggtitle("All child users in Affery") +
+#     geom_point(aes(shape = factor(lessonCompletionRate))) +
+#     labs(col = "Unit", shape = "Complete \n Lesson") +
+#     scale_color_manual(values=c("grey56","#7CAE00","tan1","#C77CFF","#F8766D","#00BFC4"))
+#     #facet_wrap(~ userRole, ncol = 2)
+# ))
+
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Affery_2")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+####Affery_Plateau 2
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Affery_Plateau 2")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+```
+
+####Affery_Plateau 4
+```{r, echo = F, fig.height = 8, fig.width = 9}
+
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Affery_Plateau 4")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+####Affery_Plateau 5
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Affery_Plateau 5")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+####Affery_unknown
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Affery_unknown")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+
+```
+
+
+###Ahouabo
+###{.tabset}
+####Ahouabo_1
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Ahouabo_1")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+####Ahouabo_2
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Ahouabo_2")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+###Ananguie
+###{.tabset}
+####Ananguie_2
+```{r, echo = F, fig.height = 8, fig.width = 9}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Ananguie_2")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+###Becouefin
+###{.tabset}
+####Becouefin_1
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Becouefin_1")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+####Becouefin_3
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Becouefin_3")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+###Bouape
+###{.tabset}
+####Bouape_2
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Bouape_2")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+####Bouape_3
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Bouape_3")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+###Boudepe
+###{.tabset}
+####Boudepe_1
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Boudepe_1")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+###Diape
+###{.tabset}
+####Diape_1
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Diape_1")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+
+```
+
+####Diape_4
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Diape_4")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+
+###Moape
+###{.tabset}
+####Moape_2
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Moape_2")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+
+####Moape_4
+```{r, echo = F, fig.height = 4.2, fig.width = 7}
+interactionsCount_day_FILTER = interactionsCount_day %>%
+  filter(village_school == "Moape_4")
+
+schoolName = unique(interactionsCount_day_FILTER$village_school)
+
+interactionsCount_day_FILTER %>%
+    #filter(village_school == "Affery_2") %>%
+    ggplot(aes(x = date,
+               y = reorder(studyPhoneId, date, min),
+               group = studyPhoneId, 
+               shape = userRole,
+               fill = questionsAttempted
+               )) +
+    geom_path() +
+    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
+    geom_jitter(height = 0.25, width = 0.25) +
+    #scale_shape_manual(values=c(24, 21))+
+    scale_shape_manual(values=shapes) +
+    scale_x_date(date_breaks = "2 weeks", 
+                 date_labels = "%b %d",
+                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
+    #geom_jitter(height = 0.2) +
+    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    guides(fill=guide_legend(override.aes=list(shape=21)))
+
+message(
+  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
+  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
+    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
+  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
+  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
+  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
+  )
+
+```
+
+
+<!-- #####Unit Summary Table -->
+<!-- ```{r overall unit progress, echo = F} -->
+
+<!-- datatable( -->
+<!--   overallUnit,  -->
+<!--   extensions = 'FixedColumns', -->
+<!--   options = list( -->
+<!--   scrollX = TRUE, -->
+<!--   scrollCollapse = TRUE -->
+<!-- )) -->
+<!-- ``` -->
+
+<!-- #####User List -->
+<!-- ```{r student list, echo = F} -->
+<!-- suppressMessages({ -->
+<!--   Qcount_unit_questionType = Qcount_unit_questionType %>% -->
+<!--   suppressMessages() %>% -->
+<!--   select(treccUserId, UAS.unit_id, userRole) %>% -->
+<!--   group_by(treccUserId) %>% -->
+<!--   summarize(unitId = max(UAS.unit_id), -->
+<!--             userType = unique(userRole)) -->
+<!-- }) -->
+
+<!-- datatable( -->
+<!--   Qcount_unit_questionType,  -->
+<!--   extensions = 'FixedColumns', -->
+<!--   options = list( -->
+<!--   scrollX = TRUE, -->
+<!--   scrollCollapse = TRUE -->
+<!-- )) -->
+
+<!-- #write.table(Qcount_unit_filter, "Qcount_unit_filter.csv", row.names = F, quote = F) -->
+<!-- ``` -->
+
+<!-- #####User Role Table -->
+<!-- ```{r, echo = F} -->
+
+<!-- userCount_lesson = Qcount_unit_questionType %>% -->
+<!--   group_by(userType) %>% -->
+<!--   summarize(count = n()) -->
+
+<!-- ``` -->
+
+##2. Question and Lesson Content Summary
+
+###Users Per Week: Calls and Questions
+####Per each study week, the users calling the system and attempting questions. Week 1 is study week 1.
+
+###{.tabset}
+####all users
+```{r, echo = F}
+
+usersPerWeekAttemptingQuestions = UASdata %>%
+  group_by(treccId_phoneId, weekNumber_study) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         action = "attemptingQuestions") %>%
+  group_by(weekNumber_study,action) %>%
+  summarize(count = n())
+
+usersPerWeekCallingSystem = cdrData_userCalls %>%
+  group_by(treccId_phoneId, weekNumber_study) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         action = "callingSystem") %>%
+  group_by(weekNumber_study, action) %>%
+  summarize(count = n())
+
+usersPerWeek_usage = rbind(usersPerWeekAttemptingQuestions, usersPerWeekCallingSystem)
+
+#usersPerWeek_usage = usersPerWeekAttemptingQuestions %>%
+#  left_join(usersPerWeekCallingSystem, by = c("weekNumber_study"))
+
+rm(usersPerWeekCallingSystem)
+rm(usersPerWeekAttemptingQuestions)
+
+message("Average all unique users calling system per week: ",round(mean(usersPerWeek_usage$count[usersPerWeek_usage$action == "callingSystem"]),2),"; sd: ",round(sd(usersPerWeek_usage$count[usersPerWeek_usage$action == "callingSystem"]),2))
+message("Average all unique users attempting questions per week: ",round(mean(usersPerWeek_usage$count[usersPerWeek_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(usersPerWeek_usage$count[usersPerWeek_usage$action == "attemptingQuestions"]),2))
+
+ggplot(usersPerWeek_usage, aes(as.numeric(weekNumber_study),as.numeric(count), fill = action)) +
+  geom_bar(stat = "identity", position = "dodge") + 
+  labs(y = "uniqueUsers", x = "week") +
+  scale_x_continuous(breaks = c(0:max(as.numeric(usersPerWeek_usage$weekNumber_study)))) +
+  #scale_fill_manual(values=c("gold3","grey56","dodgerblue")) +
+  #guides(fill=guide_legend(title="Users Calling System")) +
+  ggtitle("All Unique Users per Week")
+
+```
+
+####child users
+```{r, echo = F}
+
+usersPerWeekAttemptingQuestions = UASdata %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId, weekNumber_study) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         action = "attemptingQuestions") %>%
+  group_by(weekNumber_study,action) %>%
+  summarize(count = n())
+
+usersPerWeekCallingSystem = cdrData_userCalls %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId, weekNumber_study) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         action = "callingSystem") %>%
+  group_by(weekNumber_study, action) %>%
+  summarize(count = n())
+
+usersPerWeek_usage = rbind(usersPerWeekAttemptingQuestions, usersPerWeekCallingSystem)
+
+#usersPerWeek_usage = usersPerWeekAttemptingQuestions %>%
+#  left_join(usersPerWeekCallingSystem, by = c("weekNumber_study"))
+
+rm(usersPerWeekCallingSystem)
+rm(usersPerWeekAttemptingQuestions)
+
+message("Average unique child users calling system per week: ",round(mean(usersPerWeek_usage$count[usersPerWeek_usage$action == "callingSystem"]),2),"; sd: ",round(sd(usersPerWeek_usage$count[usersPerWeek_usage$action == "callingSystem"]),2))
+message("Average unique child users attempting questions per week: ",round(mean(usersPerWeek_usage$count[usersPerWeek_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(usersPerWeek_usage$count[usersPerWeek_usage$action == "attemptingQuestions"]),2))
+
+ggplot(usersPerWeek_usage, aes(as.numeric(weekNumber_study),as.numeric(count), fill = action)) +
+  geom_bar(stat = "identity", position = "dodge") + 
+  labs(y = "uniqueUsers", x = "week") +
+  scale_x_continuous(breaks = c(0:max(as.numeric(usersPerWeek_usage$weekNumber_study)))) +
+  #scale_fill_manual(values=c("gold3","grey56","dodgerblue")) +
+  #guides(fill=guide_legend(title="Users Calling System")) +
+  ggtitle("Unique Child Users per Week")
+
+```
+
+###Users Per Day: Calls and Questions
+###{.tabset}
+####all users
+```{r, echo = F}
+
+usersPerDayAttemptingQuestions = UASdata %>%
+  group_by(treccId_phoneId, date) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         action = "attemptingQuestions") %>%
+  group_by(date, action) %>%
+  summarize(count = n())
+
+usersPerDayCallingSystem = cdrData_userCalls %>%
+  group_by(treccId_phoneId, date) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         action = "callingSystem") %>%
+  group_by(date,action) %>%
+  summarize(count = n())
+
+usersPerDay_usage = rbind(usersPerDayAttemptingQuestions, usersPerDayCallingSystem)
+
+rm(usersPerDayAttemptingQuestions)
+rm(usersPerDayCallingSystem)
+
+message("Average all unique users calling system per day: ",round(mean(usersPerDay_usage$count[usersPerDay_usage$action == "callingSystem"]),2),"; sd: ",round(sd(usersPerDay_usage$count[usersPerDay_usage$action == "callingSystem"]),2))
+
+message("Average all unique users attempting questions per day: ",round(mean(usersPerDay_usage$count[usersPerDay_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(usersPerDay_usage$count[usersPerDay_usage$action == "attemptingQuestions"]),2))
+
+ggplot(usersPerDay_usage, aes(date,as.numeric(count), fill = action)) +
+  geom_bar(stat = "identity", position = "dodge") + 
+  labs(y = "uniqueUsers", x = "date") +
+  #scale_x_continuous(breaks = c(0:max(as.numeric(usersPerDay_usage$date)))) +
+  #scale_fill_manual(values=c("gold3","grey56","dodgerblue")) +
+  #guides(fill=guide_legend(title="Users Calling System")) +
+  ggtitle("All Unique Users per Day")
+
+```
+
+####child users
+```{r, echo = F}
+
+usersPerDayAttemptingQuestions = UASdata %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId, date) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         action = "attemptingQuestions") %>%
+  group_by(date, action) %>%
+  summarize(count = n())
+
+usersPerDayCallingSystem = cdrData_userCalls %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId, date) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         action = "callingSystem") %>%
+  group_by(date,action) %>%
+  summarize(count = n())
+
+usersPerDay_usage = rbind(usersPerDayAttemptingQuestions, usersPerDayCallingSystem)
+
+rm(usersPerDayAttemptingQuestions)
+rm(usersPerDayCallingSystem)
+
+message("Average unique child users calling system per day: ",round(mean(usersPerDay_usage$count[usersPerDay_usage$action == "callingSystem"]),2),"; sd: ",round(sd(usersPerDay_usage$count[usersPerDay_usage$action == "callingSystem"]),2))
+
+message("Average unique shild users attempting questions per day: ",round(mean(usersPerDay_usage$count[usersPerDay_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(usersPerDay_usage$count[usersPerDay_usage$action == "attemptingQuestions"]),2))
+
+ggplot(usersPerDay_usage, aes(date,as.numeric(count), fill = action)) +
+  geom_bar(stat = "identity", position = "dodge") + 
+  labs(y = "uniqueUsers", x = "date") +
+  #scale_x_continuous(breaks = c(0:max(as.numeric(usersPerDay_usage$date)))) +
+  #scale_fill_manual(values=c("gold3","grey56","dodgerblue")) +
+  #guides(fill=guide_legend(title="Users Calling System")) +
+  ggtitle("Unique Child Users per Day")
+
+```
+
+###Weeks Per User: Calls and Questions
+###{.tabset}
+####all users
+```{r, echo = F}
+weeksPerUsersAttemptingQuestions = UASdata %>%
+  group_by(treccId_phoneId, weekNumber_study) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         action = "attemptingQuestions") %>%
+  group_by(treccId_phoneId,action) %>%
+  summarize(count = n())
+
+weeksPerUsersCallingSystem = cdrData_userCalls %>%
+  group_by(treccId_phoneId, weekNumber_study) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         action = "callingSystem") %>%
+  group_by(treccId_phoneId, action) %>%
+  summarize(count = n())
+
+weeksPerUser_usage = rbind(weeksPerUsersAttemptingQuestions, weeksPerUsersCallingSystem)
+
+rm(weeksPerUsersAttemptingQuestions)
+rm(weeksPerUsersCallingSystem)
+
+message("Average all unique users calling system per day: ",round(mean(weeksPerUser_usage$count[weeksPerUser_usage$action == "callingSystem"]),2),"; sd: ",round(sd(weeksPerUser_usage$count[weeksPerUser_usage$action == "callingSystem"]),2))
+
+message("Average all unique users attempting questions per day: ",round(mean(weeksPerUser_usage$count[weeksPerUser_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(weeksPerUser_usage$count[weeksPerUser_usage$action == "attemptingQuestions"]),2))
+
+```
+
+####child users
+```{r, echo = F}
+weeksPerUsersAttemptingQuestions = UASdata %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId, weekNumber_study) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         action = "attemptingQuestions") %>%
+  group_by(treccId_phoneId, action) %>%
+  summarize(count = n())
+
+weeksPerUsersCallingSystem = cdrData_userCalls %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId, weekNumber_study) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL,
+         action = "callingSystem") %>%
+  group_by(treccId_phoneId, action) %>%
+  summarize(count = n())
+
+weeksPerUser_usage = rbind(weeksPerUsersAttemptingQuestions, weeksPerUsersCallingSystem)
+
+rm(weeksPerUsersAttemptingQuestions)
+rm(weeksPerUsersCallingSystem)
+
+message("Average unique child users calling system per day: ",round(mean(weeksPerUser_usage$count[weeksPerUser_usage$action == "callingSystem"]),2),"; sd: ",round(sd(weeksPerUser_usage$count[weeksPerUser_usage$action == "callingSystem"]),2))
+
+message("Average unique child users attempting questions per day: ",round(mean(weeksPerUser_usage$count[weeksPerUser_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(weeksPerUser_usage$count[weeksPerUser_usage$action == "attemptingQuestions"]),2))
+
+```
+
+###Days Per User: Calls and Questions
+###{.tabset}
+####all users
+```{r, echo = F}
+daysPerUsersAttemptingQuestions = UASdata %>%
+  group_by(treccId_phoneId, date) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(daysAttemptedQuestions = n())
+
+daysPerUsersCallingSystem = cdrData_userCalls %>%
+  group_by(treccId_phoneId, date) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(daysCallingSystem = n())
+
+daysPerUser_usage = daysPerUsersAttemptingQuestions %>%
+  left_join(daysPerUsersCallingSystem, by = c("treccId_phoneId")) %>%
+  mutate(percentDaysAttemptedQuestions = daysAttemptedQuestions / daysCallingSystem) %>%
+  filter(!is.na(daysCallingSystem))
+
+message("Average days called system per all users: ",round(mean(daysPerUser_usage$daysCallingSystem),2),"; sd: ",round(sd(daysPerUser_usage$daysCallingSystem),2))
+message("Average days attempted questions per all users: ",round(mean(daysPerUser_usage$daysAttemptedQuestions),2),"; sd: ",round(sd(daysPerUser_usage$daysAttemptedQuestions),2))
+
+```
+
+####child users
+```{r, echo = F}
+daysPerUsersAttemptingQuestions = UASdata %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId, date) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(daysAttemptedQuestions = n())
+
+daysPerUsersCallingSystem = cdrData_userCalls %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId, date) %>%
+  summarize(n = n()) %>%
+  mutate(n = NULL) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(daysCallingSystem = n())
+
+daysPerUser_usage = daysPerUsersAttemptingQuestions %>%
+  left_join(daysPerUsersCallingSystem, by = c("treccId_phoneId")) %>%
+  mutate(percentDaysAttemptedQuestions = daysAttemptedQuestions / daysCallingSystem) %>%
+  filter(!is.na(daysCallingSystem))
+
+message("Average days called system per child users: ",round(mean(daysPerUser_usage$daysCallingSystem),2),"; sd: ",round(sd(daysPerUser_usage$daysCallingSystem),2))
+message("Average days attempted questions per child users: ",round(mean(daysPerUser_usage$daysAttemptedQuestions),2),"; sd: ",round(sd(daysPerUser_usage$daysAttemptedQuestions),2))
+
+```
+
+###Usage patterns by date
+####Users have been accessing question and lesson content and making calls from child phones, adult phones, and "other" phones. The bar graph indicates how many unique users have accessed the system each day.
+
+####{.tabset}
+#####All Users Attempting Questions
+```{r users per day, echo = F}
+#users per day
+#usersPerDay = UASdata %>%
+usersPerDay_lessons = UASdata %>%
+  group_by(date, userRole) %>%
+  summarize(uniqueUsers = n_distinct(treccId_phoneId))
+
+#datatable(Qcount_usersPerDay)
+
+ggplot(usersPerDay_lessons, aes(date,as.integer(uniqueUsers), fill = factor(userRole))) +
+  geom_col() + 
+  labs(y = "uniqueUsers") +
+  scale_fill_manual(values=c("gold3","grey56","dodgerblue")) +
+  guides(fill=guide_legend(title="Users Attempting Questions")) +
+  ggtitle("Unique Users Attempting Questions per Day")
+
+
+```
+
+#####All Users on a Call
+```{r, echo = F}
+usersPerDay_calling = interactionsData %>%
+  group_by(date, userRole) %>%
+  filter(!is.na(treccId_phoneId)) %>%
+  summarize(uniqueUsers = n_distinct(treccId_phoneId))
+
+ggplot(usersPerDay_calling, aes(date,as.integer(uniqueUsers), fill = factor(userRole))) +
+  geom_col() + 
+  labs(y = "uniqueUsers") +
+  scale_fill_manual(values=c("gold3","grey56","dodgerblue")) +
+  guides(fill=guide_legend(title="Users Initiating a Call")) +
+  ggtitle("Unique Users Starting Calls per Day")
+
+
+```
+
+#####Breakdown by User Role
+```{r, echo = F}
+
+ggplot() + 
+  geom_col(data = usersPerDay_calling, aes(date, as.integer(uniqueUsers), fill = "y"), alpha = 0.3) +
+  geom_col(data = usersPerDay_lessons, aes(date, as.integer(uniqueUsers), fill = "b"), alpha = 0.3) +
+  #scale_fill_manual(values=c("gold3","grey56","dodgerblue")) +
+  scale_fill_manual(labels = c("Question Answered", "Call Started"), values=c("#FF0033", "#0066FF")) +
+  labs(x = "date", y = "uniqueUsers") +
+  guides(fill=guide_legend(title="User Actions")) +
+  facet_wrap(~ userRole, ncol = 2) +
+  ggtitle("Unique Users Starting Calls and Attempting Questions, by Role")
+
+```
+
+
+
+
+###Average Call Duration Per Any User-Initiated Call
+####This is useful if you want to check specific users.
+
+###{.tabset}
+####all users
+```{r avg time per call, echo = F}
+AvgTimeCall = cdrData_userCalls %>%
+  #filter(!is.na(elapsedTimeSec)) %>%
+  group_by(treccId_phoneId,userRole,uniqueid) %>%
+    summarize(MinPerCall = round(sum(billsec/60),2))
+
+AvgTimeCall_Agg = AvgTimeCall %>%
+  group_by(treccId_phoneId, userRole) %>%
+  summarize(n_Calls = n_distinct(uniqueid),
+            avg_MinPerCall = round(mean(MinPerCall),2),
+            sd_MinPerCall = round(sd(MinPerCall),2))
+
+datatable(
+  AvgTimeCall_Agg,
+  rownames = FALSE,
+  filter = "top",
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+####child users
+```{r avg time per lesson, echo = F}
+n_perUser = UASdata %>%
+  ungroup() %>%
+  filter(
+         userRole == "child") %>%
+  group_by(treccId_phoneId,userRole) %>%
+  summarize(n_trials = n_distinct(cmsQuestions.trial_id),
+            n_questions = n_distinct(UAS.question_id),
+            n_lessons = n_distinct(UAS.lesson_id),
+            n_calls = n_distinct(cdr.uniqueId)
+            ) %>%
+  mutate(n_questionsPerLesson = round(n_questions / n_lessons,2),
+         n_lessonsPerCall = round(n_lessons / n_calls,2))
+
+timeAgg = UASdata %>%
+  ungroup() %>%
+  filter(!is.na(elapsedTimeSec)) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(avg_secondsPerUser = round(mean(elapsedTimeSec),2),
+            sum_secondsPerUser = round(sum(elapsedTimeSec),2))
+  
+trialsMastered = Qcount_unit_questionType_all %>%
+  group_by(treccId_phoneId) %>%
+  summarize(n_trialsMastered = sum(n_trialsComplete))
+  
+minutesPerLesson = UASdata %>%
+  group_by(treccId_phoneId,cdr.uniqueId,UAS.lesson_id) %>%
+  summarize(minutesPerLesson = round(mean(elapsedTimeSec / 60),2),
+            minutesPerLesson = round(sd(elapsedTimeSec / 60),2)) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(avg_minutesPerLesson = round(mean(minutesPerLesson),2),
+            sd_minutesPerLesson = round(sd(minutesPerLesson),2))
+  
+n_perUser = n_perUser %>%
+  ungroup() %>%
+  left_join(timeAgg, by = c("treccId_phoneId")) %>%
+  left_join(trialsMastered, by = c("treccId_phoneId")) %>%
+  left_join(minutesPerLesson, by = c("treccId_phoneId")) %>%
+  select(treccId_phoneId, userRole, n_trials, n_trialsMastered, everything())
+
+# avgTimeLesson_Agg = avgTimeLesson %>%
+#   group_by(treccId_phoneId,userRole, UAS.lesson_id, UAS.question_id, cmsQuestions.trial_id) %>%
+#   summarize_each(n_distinct)
+# 
+# avgTimeLesson_agg = avgTimeLesson %>%
+#   group_by(treccId_phoneId,userRole, UAS.lesson_id, UAS.question_id, cmsQuestions.trial_id) %>% 
+#   slice(n_distinct(cmsQuestions.trial_id))
+
+  
+  # n_trials = n_distinct(cmsQuestions.trial_id) %>%
+  # group_by(treccId_phoneId,userRole, UAS.lesson_id, UAS.question_id) %>%
+  # summarize(n_questions = n_distinct(UASdata.questionid)) %>%
+  # group_by(treccId_phoneId,userRole, UAS.lesson_id) %>%
+  # summarize(n_lessons = n_distinct(UAS.lesson_id)) %>%
+  # group_by(treccId_phoneId,userRole) %>%
+  # summarize(n_calls = n_distinct(cdr.uniqueId))
+
+            # #n_trialsMastered = 
+            # avg_lessonsPerCall = round(mean(n_lessons/n_calls),2),
+            # avg_questionsPerLesson = round(mean(n_questions/n_lessons),2)
+            # #avg_minutesPerLesson = round(mean(minutesPerLesson),2),
+            # #sd_minutesPerLesson = round(sd(minutesPerLesson),2)
+            # )
+
+datatable(
+  n_perUser, 
+  extensions = 'FixedColumns',
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+
+```
+
+
+
+<!-- ###Total number of days each user has called the IVR -->
+<!-- ```{r days per user} -->
+<!-- #how many users per day -->
+<!-- daysPerUser = UASdata %>% -->
+<!--   group_by(studyPhoneId) %>% -->
+<!--   summarize(totalDays = n_distinct(date)) -->
+
+<!-- datatable(daysPerUser) -->
+<!-- ``` -->
+
+<!-- ###Total number of unique days a student has called since the deployment. -->
+
+<!-- ```{r total days used} -->
+<!-- #total days used -->
+<!-- overallTotalDaysCalled = daysPerUser %>% -->
+<!--   group_by(totalDays) %>% -->
+<!--   summarize(countOfStudents = n_distinct(studyPhoneId)) -->
+
+<!-- datatable(overallTotalDaysCalled) -->
+<!-- ``` -->
+###What time of day do users initiate certain actions?
+####The blue histogram indicates the raw hour of the day when the user starts a call.
+####The red histogram indicates the raw hour of the day when a user answers a question.
+####The overlap of the two histograms (purple) indicates the overlap of these two actions in particular hours.
+###{.tabset}
+
+####Single histogram (sum across all study days)
+```{r new lesson, hour of day - overall, echo = F}
+ggplot() + 
+  geom_histogram(data = cdrData_userCalls, aes(x = as.numeric(hourExtract), fill = "y"),binwidth = 1, alpha = 0.3) +
+  geom_histogram(data = UASdata, aes(x = as.numeric(hourExtract), fill = "b"),binwidth = 1, alpha = 0.3) +
+  scale_fill_manual(labels = c("Question Answered", "Call Started"), values=c("#FF0033", "#0066FF")) +
+  #scale_fill_manual(labels = c("Question Answered", "Call Started"), values=c("#FF0033", "#0066FF")) +
+  labs(x = "hour of the day (24h)") +
+  guides(fill=guide_legend(title="User Actions"))
+
+```
+
+####Multiple histograms (sum per study week)
+```{r new lesson, hour of day - aggregate, echo = F}
+cdrData_userCalls %>%
+  group_by(weekNumber_study) %>%
+  ggplot(aes(x = as.numeric(hourExtract))) +
+  geom_histogram(binwidth = 1) +
+  labs(x = "hour of the day (24h)") +
+  facet_wrap(~ weekNumber_study, ncol = 7) 
+```
+
+####Dates within each week
+```{r, echo = F}
+datesPerWeekNumber = cdrData_userCalls %>%
+  group_by(weekNumber_study) %>%
+  rename(weekNumber = weekNumber_study) %>%
+  summarize(minDate = min(date),
+            maxDate = max(date),
+            nDays = n_distinct(date))
+
+datatable(
+  datesPerWeekNumber,
+  extensions = 'FixedColumns',
+  fillContainer = FALSE,
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    pageLength = 50,
+    scrollX = TRUE,
+    scrollCollapse = TRUE
+))
+
+```
+
+###Avg Call Time Per All Unique Users
+####The table notes the total number of calls per user, total days, and average length of those calls.
+####The scatterplot shows each unique user's number of calls (x axis) by average length of call (y axis).
+####Note that a user might make a call but may not receive study content during a particular call.
+
+###{.tabset}
+####Table
+```{r avg call time per user, echo = F}
+
+#avgCallTime <- cdrData_filter %>%
+#  left_join(Qcount_unit_currentUnit, by = c("studyPhoneId")) %>%
+  #mutate(extraLine = ifelse(studyPhoneId == lead(studyPhoneId) & callstart == lead(callstart), 1, 0)) %>%
+  #filter(extraLine == 0) %>%
+avgCallTime = cdrData_userCalls %>%
+  group_by(village, treccId_phoneId) %>%
+  summarize(nCalls = max(callNumber),
+            nDaysCalled = n_distinct(date),
+            #callsWithLessonContent = n(),
+            avgMinPerCall = round(mean(billsec)/60,2),
+            sdMinPerCall = round(sd(billsec)/60,2))
+
+avgCallTime_village = avgCallTime %>%
+  group_by(village) %>%
+  summarize(n_users = n_distinct(treccId_phoneId),
+            avg_calls = round(mean(nCalls),2),
+            avg_daysCalled = round(mean(nDaysCalled),2),
+            #avg_callsWithLessons = round(mean(callsWithLessonContent),2),
+            avg_minPerCall = round(mean(avgMinPerCall)/60,2),
+            sd_minPerCall = round(sd(sdMinPerCall)/60,2))
+
+datatable(
+  avgCallTime_village, 
+  extensions = 'FixedColumns',
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+
+####Scatterplot
+```{r, echo = F}
+avgCallTime %>%
+  ggplot(aes(x = as.numeric(nCalls), y = as.numeric(avgMinPerCall))) +
+  labs(x = "nCalls", y = "avgMinPerCall") +
+  geom_jitter(alpha = .2, width = .2)
+  #facet_wrap(~ questionAndUnit_concat, ncol = 5) +
+  #stat_smooth()
+
+```
+
+
+###Calls and Questions per child user
+####Total calls per user and total questions per child user
+
+###{.tabset}
+####Plot
+```{r, echo = F}
+callsAndQuestions = UASdata %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId) %>%
+  summarize(nQuestions = n_distinct(cmsQuestions.id),
+            nCalls = n_distinct(cdr.uniqueId))
+
+callsAndQuestions %>%
+  ggplot(aes(x = as.numeric(nCalls), y = as.numeric(nQuestions))) +
+  geom_jitter(alpha = .2, width = .2) +
+#  geom_point() +
+  labs(x = "nCalls", y = "nQuestions")
+  #facet_wrap(~ questionAndUnit_concat, ncol = 5) +
+  #stat_smooth()
+
+```
+
+####Table
+```{r, echo = F}
+datatable(
+  callsAndQuestions, 
+  extensions = 'FixedColumns',
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+
+##3. Call Initiation Summary
+####This is useful if you want to check specific users.
+
+##{.tabset}
+###Per User
+```{r, echo = F}
+allCalls_user = cdrData_userCalls %>%
+  group_by(treccId_phoneId, village, userRole,treccId_phoneId) %>%
+  summarize(
+    #callsWithLessons = sum(callHasUASData),
+            calls = n(),
+            #pct_callsWithLessons = round(callsWithLessons/calls,2),
+            avg_callDuration = round(mean(billsec),2),
+            sd_callDuration = round(sd(billsec),2))
+
+datatable(
+  allCalls_user, 
+  extensions = 'FixedColumns',
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+###Per Village
+```{r, echo = F}
+allCalls_village = allCalls_user %>%
+  group_by(village, userRole) %>%
+  summarize(
+    #n_callsWithLessons = sum(callsWithLessons),
+            n_calls = sum(calls),
+            #pct_callsWithLessons = round(n_callsWithLessons/n_calls,2),
+            avg_user_callDuration = round(mean(avg_callDuration),2),
+            sd_user_callDuration = round(sd(avg_callDuration),2))
+
+datatable(
+  allCalls_village,
+  extensions = 'FixedColumns',
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+
+```{r, echo = F}
+#setup for adult flow analysis
+
+interactionsData_flowMap = read.csv(file = "interactionsData_flowMap.csv", stringsAsFactors = F)
+
+#use this to rename the column on a windows machine
+
+colnames(interactionsData_flowMap)[1] <- "interactionDataValue_numberPressed"
+
+interactionsData_parentAnalysis = interactionsData %>%
+  ungroup() %>%
+  filter(interactionData.data_key != "childId" & interactionData.data_key != "UniqueID") %>%
+  mutate(interactions.value = NULL,
+         interactions.data = NULL,
+         interactions.date_created = NULL,
+         interactions.id = NULL,
+         interactions.persistent = NULL,
+         interactions.pending = NULL,
+         numberPressed = ifelse(cdr.uniqueId == lead(cdr.uniqueId) & lead(interactionData.data_key) == "query", lead(interactionData.value), NA),
+         interactionDataValue_numberPressed = paste0(interactionData.value, numberPressed)) %>%
+  left_join(interactionsData_flowMap, by = c("interactionDataValue_numberPressed")) %>%
+  group_by(date, cdr.uniqueId) %>%
+  #stop after this row to get the raw data before summary
+  fill(Flow, .direction = "down") %>%
+  ungroup() %>%
+  filter(!is.na(Flow))
+  
+interactionsData_parentAnalysis_flowCount = interactionsData_parentAnalysis %>%
+  group_by(date, treccId_phoneId, cdr.uniqueId, Flow) %>%
+  summarize(count = n()) %>%
+  mutate(count = NULL) %>%
+  #stop before %>% to get the user Role count per cdr id
+  group_by(date, treccId_phoneId, cdr.uniqueId) %>%
+  summarize(n_usersFlow = n_distinct(Flow)) %>%
+  filter(n_usersFlow != 1)
+
+interactionsData_parentAnalysis_node = interactionsData_parentAnalysis %>%
+  filter(substr(interactionData.data_key, 1, 5) == "sound",
+         !is.na(interactionData.data_key),
+         !is.na(interactionData.value)) %>%
+  group_by(treccId_phoneId) %>%
+  #summarize(callsWithNodeValue = n_distinct(cdr.uniqueId)) %>%
+  summarize(n_calls = n_distinct(cdr.uniqueId),
+            n_calls_systemInformation = n_distinct(cdr.uniqueId[interactionData.value == "SystemInformation"]),
+            n_calls_studyInformation = n_distinct(cdr.uniqueId[interactionData.value == "StudyInformation"]),
+            n_calls_lessonSupport = n_distinct(cdr.uniqueId[interactionData.value == "LessonSupportOptions"]),
+            n_calls_unitSummary = n_distinct(cdr.uniqueId[interactionData.value == "Unit_Summary"])
+            )
+
+rm(interactionsData_parentAnalysis_flowCount)
+rm(interactionsData_parentAnalysis_node)
+# datatable(
+#  interactionsData_parentAnalysis_flowCount,
+#  extensions = 'FixedColumns',
+#  options = list(
+#  scrollX = TRUE,
+#  scrollCollapse = TRUE
+# ))
+
+# # run this to recreate the join table above
+# interactionsData_parentAnalysis_table = interactionsData_parentAnalysis %>%
+#   group_by(interactionData.value, numberPressed) %>%
+#   summarize(count = n()) %>%
+#   mutate(count = NULL)
+```
+
+##4. Summary of user actions
+###Counts of all users - by role - who have received an auto-call (with accompanyting subcategories), initiated a call (and accompanying subcategories), attempted questions, and accessed child or adult flow
+
+```{r, echo = F}
+
+#to get the binary, change each summarize to count = n() and then add count=NULL to the following mutate.
+#to get the sum, change each summarize to [name] = n() and remove the null line from the following mutaet.
+
+#for child users only
+## usersOrig = usersOrig %>%
+##   rename(dst = mobile_number) %>%
+##   mutate(village = NULL,
+##          dst = as.numeric(dst))
+
+#prep dataset
+treccUserData_adult_child = treccUserData_adult_child %>%
+  #select(treccId_phoneId, mobileNumberShort, userRole) %>%
+  rename(dst = mobileNumberShort) %>%
+  mutate(dst = as.numeric(dst))
+#3 columns output
+
+
+##count those who received auto calls
+autoCall_received = cdrData_autoGenerate %>%
+  ungroup() %>%
+  mutate(dst = as.numeric(dst)) %>%
+  filter(dcontext == "outbound_mtn") %>%
+  #left_join(treccUserData_adult_child1, by = c("dst")) %>%
+  # rename(treccId_phoneId = treccId_phoneId.y,
+  #        treccUserId = treccUserId.y,
+  #        mobileNumberLong = mobileNumberLong.y,
+  #        userType = userType.y,
+  #        userRole = userRole.y,
+  #        studyPhoneId = studyPhoneId.y,
+  #        village = village.y,
+  #        school = school.y
+  #        ) %>%
+  # mutate(treccId_phoneId.x = NULL,
+  #        treccUserId.x = NULL,
+  #        mobileNumberLong.x = NULL,
+  #        userType.x = NULL,
+  #        userRole.x = NULL,
+  #        studyPhoneId.x = NULL,
+  #        village.x = NULL,
+  #        school.x = NULL
+  #        ) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(count = n()) %>%
+  mutate(count = NULL,
+         autoCallReceived_binary = 1)
+treccUserData_adult_child = treccUserData_adult_child %>%
+  left_join(autoCall_received, by = c("treccId_phoneId"))
+treccUserData_adult_child[c("autoCallReceived_binary")][is.na(treccUserData_adult_child[c("autoCallReceived_binary")])] <- 0  
+rm(autoCall_received)
+#4 columns output
+
+
+
+##count those who answered auto calls
+autoCall_answered = cdrData_autoGenerate %>%
+  ungroup() %>%
+  mutate(dst = as.numeric(dst)) %>%
+  filter(dcontext == "outbound_mtn" & disposition == "ANSWERED") %>%
+  left_join(treccUserData_adult_child, by = c("dst")) %>%
+  rename(treccId_phoneId = treccId_phoneId.y) %>%
+  mutate(treccId_phoneId.x = NULL) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(count = n()) %>%
+  mutate(count = NULL,
+         autoCallAnswered_binary = 1)
+treccUserData_adult_child = treccUserData_adult_child %>%
+  left_join(autoCall_answered, by = c("treccId_phoneId"))
+treccUserData_adult_child[c("autoCallAnswered_binary")][is.na(treccUserData_adult_child[c("autoCallAnswered_binary")])] <- 0  
+rm(autoCall_answered)
+#5 columns output
+
+
+
+##count those who didn't answer auto calls
+autoCall_noAnswer = cdrData_autoGenerate %>%
+  ungroup() %>%
+  mutate(dst = as.numeric(dst)) %>%
+  filter(dcontext == "outbound_mtn" & disposition == "NO ANSWER") %>%
+  left_join(treccUserData_adult_child, by = c("dst")) %>%
+  rename(treccId_phoneId = treccId_phoneId.y) %>%
+  mutate(treccId_phoneId.x = NULL) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(count = n()) %>%
+  mutate(count = NULL,
+         autoCallNotAnswered_binary = 1)
+treccUserData_adult_child = treccUserData_adult_child %>%
+  left_join(autoCall_noAnswer, by = c("treccId_phoneId"))
+treccUserData_adult_child[c("autoCallNotAnswered_binary")][is.na(treccUserData_adult_child[c("autoCallNotAnswered_binary")])] <- 0  
+rm(autoCall_noAnswer)
+#6 columns output
+
+
+
+##count those who called the IVR directly
+treccUserData_adult_child = treccUserData_adult_child %>%
+  rename(users.localNumber = dst)
+calledIVR_direct = cdrData_userCalls %>%
+  ungroup() %>%
+  #left_join(usersOrig, by = c("users.localNumber")) %>%
+  #rename(studyPhoneId = studyPhoneId.y) %>%
+  #mutate(studyPhoneId.x = NULL) %>%
+  filter(!is.na(treccId_phoneId) & callType == "user-initiated call") %>%
+  group_by(treccId_phoneId) %>%
+  summarize(count = n()) %>%
+  mutate(count = NULL,
+         calledIVR_direct_binary = 1)
+treccUserData_adult_child = treccUserData_adult_child %>%
+  left_join(calledIVR_direct, by = c("treccId_phoneId"))
+treccUserData_adult_child[c("calledIVR_direct_binary")][is.na(treccUserData_adult_child[c("calledIVR_direct_binary")])] <- 0  
+rm(calledIVR_direct)
+#7 columns output
+
+
+
+##count those who called via callback
+calledIVR_callback = cdrData_userCalls %>%
+  ungroup() %>%
+  filter(!is.na(treccId_phoneId) & callType == "ivr callback") %>%
+  group_by(treccId_phoneId) %>%
+  summarize(count = n()) %>%
+  mutate(count = NULL,
+         calledIVR_callback_binary = 1)
+treccUserData_adult_child = treccUserData_adult_child %>%
+  left_join(calledIVR_callback, by = c("treccId_phoneId"))
+treccUserData_adult_child[c("calledIVR_callback_binary")][is.na(treccUserData_adult_child[c("calledIVR_callback_binary")])] <- 0  
+rm(calledIVR_callback)
+#8 columns output
+
+
+
+##count those who attempted a question
+attemptedQuestion_UAS = UASdata %>%
+  group_by(treccId_phoneId) %>%
+  summarize(count = n()) %>%
+  mutate(count = NULL,
+         attemptedQuestion_binary = 1)
+treccUserData_adult_child = treccUserData_adult_child %>%
+  left_join(attemptedQuestion_UAS, by = c("treccId_phoneId"))
+treccUserData_adult_child[c("attemptedQuestion_binary")][is.na(treccUserData_adult_child[c("attemptedQuestion_binary")])] <- 0
+rm(attemptedQuestion_UAS)
+#9 columns output
+
+
+#count those who accessed child flow
+accessedAdult_interactions = interactionsData_parentAnalysis %>%
+  filter(Flow == "adult") %>%
+  group_by(treccId_phoneId) %>%
+  summarize(count = n()) %>%
+  mutate(count = NULL,
+         accessedAdultFlow_binary = 1)
+treccUserData_adult_child = treccUserData_adult_child %>%
+  left_join(accessedAdult_interactions, by = c("treccId_phoneId"))
+treccUserData_adult_child[c("accessedAdultFlow_binary")][is.na(treccUserData_adult_child[c("accessedAdultFlow_binary")])] <- 0  
+#10 columns output
+
+
+
+##count hose who accessed adult flow
+accessedChild_interactions = interactionsData_parentAnalysis %>%
+  filter(Flow == "child") %>%
+  group_by(treccId_phoneId) %>%
+  summarize(count = n()) %>%
+  mutate(count = NULL,
+         accessedChildFlow_binary = 1)
+treccUserData_adult_child = treccUserData_adult_child %>%
+  left_join(accessedChild_interactions, by = c("treccId_phoneId"))
+treccUserData_adult_child[c("accessedChildFlow_binary")][is.na(treccUserData_adult_child[c("accessedChildFlow_binary")])] <- 0
+rm(accessedChild_interactions)
+#10 columns output ###ERROR
+
+
+##count those in users table
+intreccUserData_adult_childTable_Users = treccUserData_adult_child_realCallers %>%
+  group_by(treccId_phoneId) %>%
+  summarize(count = n()) %>%
+  mutate(count = NULL,
+         intreccUserData_adult_childTable = 1)
+treccUserData_adult_child = treccUserData_adult_child %>%
+  left_join(intreccUserData_adult_childTable_Users, by = c("treccId_phoneId"))
+treccUserData_adult_child[c("intreccUserData_adult_childTable")][is.na(treccUserData_adult_child[c("intreccUserData_adult_childTable")])] <- 0
+rm(intreccUserData_adult_childTable_Users)
+#11 columns output
+
+#names(treccUserData_adult_child)
+
+users_cat = treccUserData_adult_child %>%
+  group_by(treccId_phoneId) %>%
+  mutate(actionSum = sum(autoCallReceived_binary, 
+                         autoCallAnswered_binary, 
+                         autoCallNotAnswered_binary, 
+                         calledIVR_callback_binary, 
+                         calledIVR_direct_binary, 
+                         attemptedQuestion_binary, 
+                         accessedAdultFlow_binary, 
+                         accessedChildFlow_binary, 
+                         intreccUserData_adult_childTable),
+         calledIVR = ifelse(calledIVR_callback_binary == 1 | calledIVR_direct_binary == 1, 1, 0),
+         neverAnsweredAutoCall = ifelse(autoCallAnswered_binary == 0 & autoCallNotAnswered_binary == 1,1,0),
+         alwaysAnsweredAutoCall = ifelse(autoCallAnswered_binary == 1 & autoCallNotAnswered_binary == 0, 1, 0),
+         #callsAnswered = sum(totalCalls_answered),
+         #callsNotAnswered = sum(totalCalls_notAnswered),
+         #IVRCalls = sum(totalCalledIVR),
+         #callbacks = sum(calledIVR_callback),
+         #directCalls = sum(calledIVR_direct),
+         #calls_adultFlow = sum(totalAccessAdultFlow),
+         #calls_childFlow = sum(totalAccessChildFlow),
+         users.localNumber = NULL
+         )
+
+```
+
+
+```{r, echo = F}
+users_binary_summary = users_cat %>%
+  ungroup() %>%
+  group_by(userRole) %>%
+  summarize(receivedAutoCall = sum(autoCallReceived_binary),
+            .....answeredAutoCall = sum(autoCallAnswered_binary),
+            .....noAnswerAutoCall = sum(autoCallNotAnswered_binary),
+            .....neverAnsweredAutoCall = sum(neverAnsweredAutoCall),
+            .....alwaysAnsweredAutoCall = sum(alwaysAnsweredAutoCall),
+            calledIVR = sum(calledIVR),
+            .....calledIVR_direct = sum(calledIVR_direct_binary),
+            .....calledIVR_callback = sum(calledIVR_callback_binary),
+            attemptedQuestion = sum(attemptedQuestion_binary),
+            accessedAdultFlow = sum(accessedAdultFlow_binary),
+            accessedChildFlow = sum(accessedChildFlow_binary),
+            inUserDataTable = sum(intreccUserData_adult_childTable)
+            ) %>%
+  adorn_totals("row") %>%
+  mutate(userRole = NULL)
+
+#transpose the table
+users_summary = t(users_binary_summary)
+```
+
+###{.tabset}
+####summary table
+```{r, echo = F}
+datatable(
+  users_summary,
+  colnames = c("adult ", "child", "unknown", "TOTAL"),
+  extensions = 'FixedColumns',
+  fillContainer = FALSE,
+  filter = "top",
+  options = list(
+    pageLength = 12,
+    scrollX = TRUE,
+    scrollCollapse = TRUE
+))
+
+```
+
+
+####all users 
+```{r, echo = F}
+datatable(
+  users_cat, 
+  extensions = 'FixedColumns',
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+```
+
+###Users Roles in units
+```{r, echo = F}
+overallUnit = Qcount_unit_questionType_all %>%
+  group_by(treccId_phoneId, userRole) %>%
+  summarize(currentUnit = max(UAS.unit_id))
+  
+overallUnit = overallUnit %>%
+  group_by(
+    currentUnit,
+    userRole
+    ) %>%
+  summarize(n_users = n_distinct(treccId_phoneId))
+
+overallUnit
+```
+
+```{r, echo = F}
+message("Total users in units: ",sum(overallUnit$n_users))
+```
+
+<!-- ##5. Promotion Analysis -->
+
+<!-- ###Question Progress For Promotion -->
+<!-- ####How many questions did a student have to answer in a given unit until they achieved the promotion threshold? -->
+<!-- ####This analysis is only for students who were promoted into subsequent units based on their performance. Students who never passed Unit 1 are excluded from this analysis. Students who were manually promoted into later units have that unit with interrupted progress filtered out of this analysis. For example, if a student achieved the promotion threshold for unit 2 on their own, and then while they were in the middle of unit 3 were promoted to unit 4, I would filter out unit 3 because their natural progress was interrupted. However, I would keep units 1 and 2. I would filter out unit 4 because the student is still currently working in that unit. -->
+
+<!-- ###{.tabset} -->
+<!-- ####Aggregate Table -->
+
+<!-- ```{r, echo = F} -->
+<!-- promotionQuestions = Qcount_unit %>% -->
+<!--    ungroup() %>% -->
+<!--    #filter(artificialPromotion == 0, studyPhoneId != 15, studyPhoneId != 33, studyPhoneId != 38) %>% -->
+<!--    mutate(terminalUnit = ifelse(UAS.unit_id != lead(UAS.unit_id), 1, 0)) %>% -->
+<!--    filter(terminalUnit == 0) %>% -->
+<!--    mutate(questionsAnsweredInCurrentUnitBeforePromotion = ifelse(treccUserId == lead(treccUserId), uniqueQuestions,NA), -->
+<!--            daysCalledInCurrentUnitBeforePromotion = ifelse(treccUserId == lead(treccUserId), daysCalledIVR,NA)) %>% -->
+<!--    filter(UAS.unit_id != 1) %>% -->
+<!--    mutate(UAS.unit_id = UAS.unit_id-1) -->
+
+<!--   promotionQuestions_table = promotionQuestions %>% -->
+<!--     group_by(UAS.unit_id) %>% -->
+<!--     summarize(nStudents = n_distinct(UAS.unit_id), -->
+<!--               avg_DaysInUnitBeforePromotion = round(mean(daysCalledIVR),2), -->
+<!--               sd_DaysInUnitBeforePromotion = round(sd(daysCalledIVR),2), -->
+<!--               avg_QBeforePromotion = round(mean(uniqueQuestions),2), -->
+<!--               sd = round(sd(uniqueQuestions),2), -->
+<!--               min = min(uniqueQuestions), -->
+<!--               max = max(uniqueQuestions)) -->
+
+<!--   datatable( -->
+<!--    promotionQuestions_table, -->
+<!--    extensions = 'FixedColumns', -->
+<!--    options = list( -->
+<!--    scrollX = TRUE, -->
+<!--    scrollCollapse = TRUE -->
+<!--  )) -->
+
+<!-- ``` -->
+
+<!-- ####Scatterplot -->
+<!-- ```{r, echo = F} -->
+<!--  promotionQuestions$UAS.unit_id = as.character(promotionQuestions$UAS.unit_id) -->
+
+<!--  promotionQuestions %>% -->
+<!--    ggplot(aes(x=daysCalledIVR,y=uniqueQuestions, color=UAS.unit_id)) + -->
+<!--    geom_point() + -->
+<!--    scale_color_manual(values=c("gray50","olivedrab3","darkgoldenrod1","firebrick1")) -->
+
+<!-- ``` -->
+
+<!-- ####Student Table -->
+<!-- ```{r, echo = F} -->
+<!--   datatable( -->
+<!--    promotionQuestions, -->
+<!--    extensions = 'FixedColumns', -->
+<!--    options = list(    -->
+<!--    scrollX = TRUE, -->
+<!--    scrollCollapse = TRUE -->
+<!--  )) -->
+<!-- ``` -->
+
+##5. Simultaneous Calls Analysis
+###All Users
+####Method: This analysis first breaks down each hour into 10 minute windows (e.g. minute 0 to minute 9; minute 10 to minute 19; etc) and then calculates the number of users calling in that window. Finally, it averages these windows out across a study day. If max_usersCalling is more than 60 (which is 8% of the 750 study phones) then there will be dropped calls as the SIP will not be able to handle more than 60 simulatneous calls.
+
+####This is a simplified approach; this can be made more robust.
+
+```{r, echo = F}
+ cdrData_filter_simultaneousCalls <- cdrData_userCalls %>%
+  filter(callType == "user-initiated call") %>%
+  mutate(minuteCategory = ifelse(minuteExtract <= 9, 00,
+                                  ifelse(minuteExtract <= 19, 10,
+                                         ifelse(minuteExtract <= 29, 20,
+                                                ifelse(minuteExtract <= 39, 30,
+                                                       ifelse(minuteExtract <= 49, 40, 50)))))) %>%
+   group_by(date, hourExtract, minuteCategory) %>%
+   summarize(uniqueUsers = n_distinct(treccId_phoneId)) %>%
+   mutate(percentCallingAtOnce = round(uniqueUsers/nrow(treccUserData_adult_child),2)) %>%
+   ungroup() %>%
+   group_by(date) %>%
+   summarize(
+             sum_10MinutePeriodsWithCalls = n(),
+             pct_10MinutePeriodsWithCalls = round(sum_10MinutePeriodsWithCalls / (24*6),2),
+             avg_usersCalling = round(mean(uniqueUsers),2),
+             min_usersCalling = min(uniqueUsers),
+             max_usersCalling = max(uniqueUsers)
+             )
+
+
+datatable(
+  cdrData_filter_simultaneousCalls, 
+  extensions = 'FixedColumns',
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+  scrollX = TRUE,
+  scrollCollapse = TRUE
+))
+##write this to a csv
+#write.table(cdrData_filter_simultaneousCalls, "cdrData_filter_simultaneousCalls.txt", row.names = F)
+```
+
+
+
+<!-- # ```{r, echo = F} -->
+<!-- #  -->
+<!-- # #2 days / times per week -->
+<!-- # activeUsers = cdrData_userCalls %>% -->
+<!-- #   filter(userRole == "child") %>% -->
+<!-- #   group_by(treccId_phoneId) %>% -->
+<!-- #   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!-- #   group_by(treccId_phoneId, weekNumber_study) %>% -->
+<!-- #   mutate(n_callsPerWeek = n_distinct(uniqueid)) %>% -->
+<!-- #   group_by(treccId_phoneId) %>% -->
+<!-- #   summarize(avg_callsPerWeek = mean(n_callsPerWeek)) %>% -->
+<!-- #   ungroup() %>% -->
+<!-- #   filter(avg_callsPerWeek >= 2) -->
+<!-- #  -->
+<!-- # message("child users calling avg 2+ times (not days) per week: ", nrow(activeUsers)) -->
+<!-- #  -->
+<!-- # activeUsers = UASdata %>% -->
+<!-- #   filter(userRole == "child") %>% -->
+<!-- #   group_by(treccId_phoneId) %>% -->
+<!-- #   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!-- #   group_by(treccId_phoneId, weekNumber_study) %>% -->
+<!-- #   mutate(n_callsPerWeek = n_distinct(cdr.uniqueId)) %>% -->
+<!-- #   group_by(treccId_phoneId) %>% -->
+<!-- #   summarize(avg_callsPerWeek = mean(n_callsPerWeek)) %>% -->
+<!-- #   ungroup() %>% -->
+<!-- #   filter(avg_callsPerWeek >= 2) -->
+<!-- #  -->
+<!-- # message("child users attempting questions avg 2+ times (not days) per week: ", nrow(activeUsers)) -->
+<!-- #  -->
+<!-- # activeUsers = cdrData_userCalls %>% -->
+<!-- #   filter(userRole == "child") %>% -->
+<!-- #   group_by(treccId_phoneId) %>% -->
+<!-- #   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!-- #   group_by(treccId_phoneId, weekNumber_study) %>% -->
+<!-- #   mutate(n_daysPerWeek = n_distinct(date)) %>% -->
+<!-- #   group_by(treccId_phoneId) %>% -->
+<!-- #   summarize(avg_daysPerWeek = mean(n_daysPerWeek)) %>% -->
+<!-- #   ungroup() %>% -->
+<!-- #   filter(avg_daysPerWeek >= 2) -->
+<!-- #  -->
+<!-- # message("child users calling avg 2+ days per week: ", nrow(activeUsers)) -->
+<!-- #  -->
+<!-- #  -->
+<!-- # activeUsers = UASdata %>% -->
+<!-- #   filter(userRole == "child") %>% -->
+<!-- #   group_by(treccId_phoneId) %>% -->
+<!-- #   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!-- #   group_by(treccId_phoneId, weekNumber_study) %>% -->
+<!-- #   mutate(n_daysPerWeek = n_distinct(date)) %>% -->
+<!-- #   group_by(treccId_phoneId) %>% -->
+<!-- #   summarize(avg_daysPerWeek = mean(n_daysPerWeek)) %>% -->
+<!-- #   ungroup() %>% -->
+<!-- #   filter(avg_daysPerWeek >= 2) -->
+<!-- #  -->
+<!-- # message("child users attempting questions avg 2+ days per week: ", nrow(activeUsers)) -->
+<!-- #  -->
+<!-- #  -->
+<!-- # activeUsers = cdrData_userCalls %>% -->
+<!-- #   filter(userRole == "child") %>% -->
+<!-- #   group_by(treccId_phoneId) %>% -->
+<!-- #   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!-- #   filter(n_weeks >= 2) %>% -->
+<!-- #   summarize(n = n()) -->
+<!-- #  -->
+<!-- # message("child users calling on 2+ different weeks: ", nrow(activeUsers)) -->
+<!-- #  -->
+<!-- #  -->
+<!-- # activeUsers = UASdata %>% -->
+<!-- #   filter(userRole == "child") %>% -->
+<!-- #   group_by(treccId_phoneId) %>% -->
+<!-- #   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!-- #   filter(n_weeks >= 2) %>% -->
+<!-- #   summarize(n = n()) -->
+<!-- #  -->
+<!-- #  -->
+<!-- # message("child users attempting questions on 2+ different weeks: ", nrow(activeUsers)) -->
+<!-- #  -->
+<!-- #  -->
+<!-- # ``` -->
+
+<!-- ###active user analysis: 3 days or times per week -->
+<!-- ```{r, echo = F} -->
+
+<!-- activeUsers = cdrData_userCalls %>% -->
+<!--   filter(userRole == "child" & callType == "user-initiated call") %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!--   group_by(treccId_phoneId, weekNumber_study) %>% -->
+<!--   mutate(n_callsPerWeek = n_distinct(uniqueid)) %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   summarize(avg_callsPerWeek = mean(n_callsPerWeek)) %>% -->
+<!--   ungroup() %>% -->
+<!--   filter(avg_callsPerWeek >= 3) -->
+
+<!-- message("child users initiating calls avg 3+ times (not days) per week: ", nrow(activeUsers)) -->
+
+<!-- activeUsers = UASdata %>% -->
+<!--   filter(userRole == "child") %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!--   group_by(treccId_phoneId, weekNumber_study) %>% -->
+<!--   mutate(n_callsPerWeek = n_distinct(cdr.uniqueId)) %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   summarize(avg_timesPerWeekWithQuestions = mean(n_callsPerWeek)) %>% -->
+<!--   ungroup() %>% -->
+<!--   filter(avg_timesPerWeekWithQuestions >= 3) -->
+
+<!-- message("child users attempting questions avg 3+ times (not days) per week: ", nrow(activeUsers)) -->
+
+<!-- activeUsers = cdrData_userCalls %>% -->
+<!--   filter(userRole == "child" & callType == "user-initiated call") %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!--   group_by(treccId_phoneId, weekNumber_study) %>% -->
+<!--   mutate(n_daysPerWeek = n_distinct(date)) %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   summarize(avg_daysPerWeek = mean(n_daysPerWeek)) %>% -->
+<!--   ungroup() %>% -->
+<!--   filter(avg_daysPerWeek >= 3) -->
+
+<!-- message("child users initiating calls avg 3+ days per week: ", nrow(activeUsers)) -->
+
+
+<!-- activeUsers = UASdata %>% -->
+<!--   filter(userRole == "child") %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!--   group_by(treccId_phoneId, weekNumber_study) %>% -->
+<!--   mutate(n_daysPerWeek = n_distinct(date)) %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   summarize(avg_daysPerWeek = mean(n_daysPerWeek)) %>% -->
+<!--   ungroup() %>% -->
+<!--   filter(avg_daysPerWeek >= 3) -->
+
+<!-- message("child users attempting questions avg 3+ days per week: ", nrow(activeUsers)) -->
+
+
+<!-- activeUsers = cdrData_userCalls %>% -->
+<!--   filter(userRole == "child" &  callType == "user-initiated call") %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!--   filter(n_weeks >= 3) %>% -->
+<!--   summarize(n = n()) -->
+
+<!-- message("child users initiating calls on 3+ different weeks: ", nrow(activeUsers)) -->
+
+
+<!-- activeUsers = UASdata %>% -->
+<!--   filter(userRole == "child") %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!--   filter(n_weeks >= 3) %>% -->
+<!--   summarize(n = n()) -->
+
+<!-- message("child users attempting questions on 3+ different weeks: ", nrow(activeUsers)) -->
+<!-- ``` -->
+
+<!-- ###active user analysis: 4 days or times per week -->
+<!-- ```{r, echo = F} -->
+
+<!-- activeUsers = cdrData_userCalls %>% -->
+<!--   filter(userRole == "child" & callType == "user-initiated call") %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!--   group_by(treccId_phoneId, weekNumber_study) %>% -->
+<!--   mutate(n_callsPerWeek = n_distinct(uniqueid)) %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   summarize(avg_callsPerWeek = mean(n_callsPerWeek)) %>% -->
+<!--   ungroup() %>% -->
+<!--   filter(avg_callsPerWeek >= 4) -->
+
+<!-- message("child users initiating calls avg 4+ times (not days) per week: ", nrow(activeUsers)) -->
+
+<!-- activeUsers = UASdata %>% -->
+<!--   filter(userRole == "child") %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!--   group_by(treccId_phoneId, weekNumber_study) %>% -->
+<!--   mutate(n_callsPerWeek = n_distinct(cdr.uniqueId)) %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   summarize(avg_callsPerWeek = mean(n_callsPerWeek)) %>% -->
+<!--   ungroup() %>% -->
+<!--   filter(avg_callsPerWeek >= 4) -->
+
+<!-- message("child users attempting questions avg 4+ times (not days) per week: ", nrow(activeUsers)) -->
+
+<!-- activeUsers = cdrData_userCalls %>% -->
+<!--   filter(userRole == "child" & callType == "user-initiated call") %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!--   group_by(treccId_phoneId, weekNumber_study) %>% -->
+<!--   mutate(n_daysPerWeek = n_distinct(date)) %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   summarize(avg_daysPerWeek = mean(n_daysPerWeek)) %>% -->
+<!--   ungroup() %>% -->
+<!--   filter(avg_daysPerWeek >= 4) -->
+
+<!-- message("child users initiating calls avg 4+ days per week: ", nrow(activeUsers)) -->
+
+
+<!-- activeUsers = UASdata %>% -->
+<!--   filter(userRole == "child") %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!--   group_by(treccId_phoneId, weekNumber_study) %>% -->
+<!--   mutate(n_daysPerWeek = n_distinct(date)) %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   summarize(avg_daysPerWeek = mean(n_daysPerWeek)) %>% -->
+<!--   ungroup() %>% -->
+<!--   filter(avg_daysPerWeek >= 4) -->
+
+<!-- message("child users attempting questions avg 4+ days per week: ", nrow(activeUsers)) -->
+
+
+<!-- activeUsers = cdrData_userCalls %>% -->
+<!--   filter(userRole == "child" & callType == "user-initiated call") %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!--   filter(n_weeks >= 4) %>% -->
+<!--   summarize(n = n()) -->
+
+<!-- message("child users initiating calls on 4+ different weeks: ", nrow(activeUsers)) -->
+
+
+<!-- activeUsers = UASdata %>% -->
+<!--   filter(userRole == "child") %>% -->
+<!--   group_by(treccId_phoneId) %>% -->
+<!--   mutate(n_weeks = n_distinct(weekNumber_study)) %>% -->
+<!--   filter(n_weeks >= 4) %>% -->
+<!--   summarize(n = n()) -->
+
+
+<!-- message("child users attempting questions on 4+ different weeks: ", nrow(activeUsers)) -->
+<!-- ``` -->
+
+###active user analysis: 5 days or times per week
+```{r, echo = F}
+
+number = 5
+
+activeUsers = cdrData_userCalls %>%
+  filter(userRole == "child" & callType == "user-initiated call") %>%
+  group_by(treccId_phoneId) %>%
+  mutate(n_weeks = n_distinct(weekNumber_study)) %>%
+  group_by(treccId_phoneId, weekNumber_study) %>%
+  mutate(n_callsPerWeek = n_distinct(uniqueid)) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(avg_callsPerWeek = mean(n_callsPerWeek)) %>%
+  ungroup() %>%
+  filter(avg_callsPerWeek >= number)
+
+message("child users initiating calls avg 5+ times (not days) per week: ", nrow(activeUsers))
+
+activeUsers = UASdata %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId) %>%
+  mutate(n_weeks = n_distinct(weekNumber_study)) %>%
+  group_by(treccId_phoneId, weekNumber_study) %>%
+  mutate(n_callsPerWeek = n_distinct(cdr.uniqueId)) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(avg_callsPerWeek = mean(n_callsPerWeek)) %>%
+  ungroup() %>%
+  filter(avg_callsPerWeek >= number)
+
+message("child users attempting questions avg 5+ times (not days) per week: ", nrow(activeUsers))
+
+activeUsers = cdrData_userCalls %>%
+  filter(userRole == "child" & callType == "user-initiated call") %>%
+  group_by(treccId_phoneId) %>%
+  mutate(n_weeks = n_distinct(weekNumber_study)) %>%
+  group_by(treccId_phoneId, weekNumber_study) %>%
+  mutate(n_daysPerWeek = n_distinct(date)) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(avg_daysPerWeek = mean(n_daysPerWeek)) %>%
+  ungroup() %>%
+  filter(avg_daysPerWeek >= number)
+
+message("child users initiating calls avg 5+ days per week: ", nrow(activeUsers))
+
+
+activeUsers = UASdata %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId) %>%
+  mutate(n_weeks = n_distinct(weekNumber_study)) %>%
+  group_by(treccId_phoneId, weekNumber_study) %>%
+  mutate(n_daysPerWeek = n_distinct(date)) %>%
+  group_by(treccId_phoneId) %>%
+  summarize(avg_daysPerWeek = mean(n_daysPerWeek)) %>%
+  ungroup() %>%
+  filter(avg_daysPerWeek >= number)
+
+message("child users attempting questions avg 5+ days per week: ", nrow(activeUsers))
+
+
+activeUsers = cdrData_userCalls %>%
+  filter(userRole == "child" & callType == "user-initiated call") %>%
+  group_by(treccId_phoneId) %>%
+  mutate(n_weeks = n_distinct(weekNumber_study)) %>%
+  filter(n_weeks >= number) %>%
+  summarize(n = n())
+
+message("child users initiating calls on 5+ different weeks: ", nrow(activeUsers))
+
+
+activeUsers = UASdata %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId) %>%
+  mutate(n_weeks = n_distinct(weekNumber_study)) %>%
+  filter(n_weeks >= number) %>%
+  summarize(n = n())
+
+
+message("child users attempting questions on 5+ different weeks: ", nrow(activeUsers))
+```
+
+
+##6. Auto Call Analysis
+###By Village
+####The users in each village who received an auto call, and whether they answered it. Note that users often received more than one auto call, and therefore a user might show up in both "answered" and "not answered" based on their behavior for the N auto calls they received. An answering rate is also provided.
+```{r, echo = F}
+
+users_cat_village = users_cat %>%
+  select(treccId_phoneId, village, userRole, autoCallNotAnswered_binary, autoCallAnswered_binary, autoCallReceived_binary, attemptedQuestion_binary) %>%
+  filter(!is.na(village),
+         #userRole == "child"
+         village != "unknown"
+         ) %>%
+  # mutate(answeringAutoCall_attemptingQuestions = ifelse(autoCallAnswered_binary == 1 & attemptedQuestion_binary == 1, 1, 0),
+  #        answeringAutoCall_notAttemptingQuestions = ifelse(autoCallAnswered_binary == 1 & attemptedQuestion_binary == 0, 1, 0),
+  #        notAnsweringAutoCall_attemptingQuestions = ifelse(autoCallAnswered_binary == 0 & attemptedQuestion_binary == 1, 1, 0),
+  #        notAnsweringAutoCall_notAttemptingQuestions = ifelse(autoCallAnswered_binary == 0 & attemptedQuestion_binary == 0, 1, 0)
+  #        ) %>%
+  group_by(village, userRole)
+
+#users_cat_village$villageTotal = c(195, 96, 67, 93, 79, 40, 76, 87)
+users_cat_village = users_cat_village %>%
+  group_by(village, userRole) %>%
+  summarize(
+            users_receivingAutoCall = sum(autoCallReceived_binary),
+            users_answeringAutoCall = sum(autoCallAnswered_binary),
+            #users_neverAnsweringAutoCall = users_receivingAutoCall - users_answeringAutoCall,
+            users_answerRate = round(users_answeringAutoCall / users_receivingAutoCall,2))
+            #users_attemptingQuestions = sum(attemptedQuestion_binary),
+            #answeringAutoCall_attemptingQuestions = sum(answeringAutoCall_attemptingQuestions),
+            #answeringAutoCall_notAttemptingQuestions = sum(answeringAutoCall_notAttemptingQuestions),
+            #notAnsweringAutoCall_attemptingQuestions = sum(notAnsweringAutoCall_attemptingQuestions),
+            #notAnsweringAutoCall_notAttemptingQuestions = sum(notAnsweringAutoCall_notAttemptingQuestions),
+            #users_notAttemptingQuestions = users_receivingAutoCall - users_attemptingQuestions,
+            #pct_usersAnsweringAutoCall_attemptingQuestions = round(sum(answeringAutoCall_attemptingQuestions) / users_receivingAutoCall, 2),
+            #pct_usersAnsweringAutoCall_notAttemptingQuestions = round(sum(answeringAutoCall_notAttemptingQuestions) / users_receivingAutoCall, 2),
+            #pct_usersNotAnsweringAutoCall_attemptingQuestions = round(sum(notAnsweringAutoCall_attemptingQuestions) / users_receivingAutoCall, 2),           
+            #pct_usersNotAnsweringAutoCall_notAttemptingQuestions = round(sum(notAnsweringAutoCall_notAttemptingQuestions) / users_receivingAutoCall, 2))
+
+
+
+datatable(
+  users_cat_village, 
+  extensions = 'FixedColumns',
+  fillContainer = FALSE,
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    scrollX = TRUE,
+    pageLength = 50,
+    scrollCollapse = TRUE
+))
+
+```
+
+
+
+
+<!-- ##7. Auto-Call and Call Rate for Child Users -->
+<!-- ###By Village -->
+
+<!-- ```{r, echo = F} -->
+
+<!-- #get the list of 750 children -->
+
+<!-- # users_cat_village = childUsers %>% -->
+<!-- #   #filter(village != "unknown") %>% -->
+<!-- #   #group_by(village) %>% -->
+<!-- #   #summarize(n_children = n_distinct(studyPhoneId)) %>% -->
+<!-- #   left_join(users_cat, by = "") -->
+
+
+
+<!-- ``` -->
+
+##7. Session Info (for debug only)
+```{r session info, echo = F}
+sessionInfo()
+```
+
+

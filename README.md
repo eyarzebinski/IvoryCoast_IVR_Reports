@@ -1,5 +1,5 @@
 # IvoryCoast_IVR_Reports
-Markdown files to generate, clean, and analyze data for IVR project reports.
+Markdown files to generate, clean, and analyze data for TRECC IVR project reports.
 
 For the following datasets: 
 1. interactions

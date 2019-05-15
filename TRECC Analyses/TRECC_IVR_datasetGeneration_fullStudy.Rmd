@@ -1,0 +1,718 @@
+---
+title: "TRECC Dataset Generation"
+author: "Evelyn Yarzebinski"
+date: "April 10, 2019"
+output: html_document
+---
+
+####NOTE:
+####DO NOT KNIT THIS DOCUMENT
+####CHECK INPUT / OUTPUT FOR INTERACTIONS AND CDR CAREFULLY IF RERUNNING WITHIN THE SAME DAY
+####USERS AND UAS CAN BE RERUN WITHOUT ANY ISSUES
+
+
+```{r, echo = F}
+#prep python environment
+
+
+#conditional setwd
+ifelse((Sys.info()["sysname"] == "windows"),
+       #set for windows
+       setwd("D:/Ivory Coast/201901 Study/"),
+       #set for mac
+       setwd("/Volumes/OganData/Ivory Coast/201901 Study"))
+dataDate = Sys.Date()
+
+library(reticulate)
+library(rlist)
+
+
+pymysql <- import("pymysql")
+pandas <- import("pandas")
+
+```
+
+```{r, echo = F}
+##use for troubleshooting only
+
+#check versions of python
+#py_discover_config()
+
+#force python version
+#reticulate::use_python("/Users/evelyn/anaconda2/envs/r-reticulate/bin/python", required = T)
+
+#install python packages as needed, import as needed
+#conda_install("pymysql")
+#conda_install("pandas")
+#py_install("pandas")
+
+# #DATADATE_PY = r_to_py(dataDate)
+# 
+# py_discover_config()
+# 
+# Sys.which("python")
+# reticulate::use_condaenv("~/Users/evelyn/anaconda3/bin/python/", required = T)
+# py_config()
+# #Sys.setenv(LD_LIBRARY_PATH = "~/Evelyn/anaconda3/lib/")
+# 
+# #Sys.setenv('RETICULATE_PYTHON'="~/evelyn/anaconda3/bin/python/")
+# 
+
+```
+
+#INTERACTIONS
+<!-- ```{python interactions new from vikram} -->
+<!-- # encoding=utf8 -->
+<!-- import csv -->
+<!-- import os -->
+<!-- import pickle -->
+<!-- import time -->
+<!-- from datetime import datetime -->
+<!-- from datetime import timedelta -->
+
+<!-- import pymysql -->
+
+<!-- start = time.time() -->
+<!-- cnx = pymysql.connect(user='trecc_user', password='treccuser', -->
+<!--                       host='10.20.20.3', -->
+<!--                       database='treccprod', charset='utf8') -->
+<!-- cursor = cnx.cursor() -->
+<!-- FILE_NAME = 'interactions_id_key.txt' -->
+
+
+<!-- def get_start_interactions_id(): -->
+<!--     dict2 = {} -->
+<!--     if os.path.exists(FILE_NAME): -->
+<!--         file = open(FILE_NAME, 'r+') -->
+<!--         dict2 = pickle.load(file) -->
+<!--     print dict2 -->
+<!--     return dict2.get('last_id', 0) -->
+
+
+<!-- def write_last_id(interactions_id): -->
+<!--     dict = {'last_id': interactions_id} -->
+<!--     file = open(FILE_NAME, 'w') -->
+<!--     pickle.dump(dict, file) -->
+<!--     file.close() -->
+
+<!-- def find_start_id(table, date, id_name="id", created_at="created_at"):   -->
+<!--     sql = "SELECT %s FROM %s WHERE %s>='%s' LIMIT 1" % (id_name, table, created_at, date) -->
+<!--     # print sql -->
+<!--     cursor.execute(sql) -->
+<!--     result = cursor.fetchone() -->
+<!--     return result[0] -->
+
+
+<!-- def output_csv(sql, file_name, read_type="w+"): -->
+<!--     cnx2 = pymysql.connect(user='trecc_user', password='treccuser', -->
+<!--                            host='10.20.20.3', -->
+<!--                            database='treccprod', charset='utf8') -->
+<!--     cursor2 = cnx2.cursor() -->
+<!--     cursor2.execute(sql) -->
+<!--     # print sql -->
+<!--     result = cursor2.fetchall() -->
+<!--     c = csv.writer(open("%s.csv" % file_name, read_type), delimiter=';') -->
+<!--     if read_type == 'w+': -->
+<!--         keys = [i[0] for i in cursor.description] -->
+<!--         c.writerow(keys) -->
+<!--     for x in result: -->
+<!--         x = ['NULL' if x1 is None else x1 for x1 in x] -->
+<!--         c.writerow([unicode(s).encode("utf-8") for s in x]) -->
+
+<!--     cnx2.close() -->
+<!--     print file_name -->
+
+
+<!-- STUDY_START_TIME = "2019-02-09 13:00:00" -->
+
+<!-- TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S' -->
+<!-- today_midnight = datetime.now() -->
+<!-- TODAY = datetime.strftime(today_midnight, TIMESTAMP_FORMAT) -->
+<!-- YESTERDAY = datetime.strftime(today_midnight - timedelta(1), TIMESTAMP_FORMAT) -->
+<!-- INTERACTIONS_START = YESTERDAY -->
+<!-- INTERACTIONS_END = TODAY -->
+
+<!-- INTERACTIONS_START_ID = find_start_id('interaction_data', INTERACTIONS_START, "id", "created_at") -->
+<!-- INTERACTIONS_END_ID = find_start_id('interaction_data', INTERACTIONS_END, "id", "created_at") -->
+
+<!-- INTERACTIONS_SQL = """ -->
+<!-- SELECT -->
+<!-- treccprod.interaction_data.id AS `interactionData.id`, -->
+<!-- treccprod.interaction_data.interaction_id AS `interactionData.interaction_id`, -->
+<!-- treccprod.interaction_data.data_key AS `interactionData.data_key`, -->
+<!-- treccprod.interaction_data.value AS `interactionData.value`, -->
+<!-- treccprod.interaction_data.created_at AS `interactionData.created_at`, -->
+<!-- treccprod.interactions.id AS `interactions.id`, -->
+<!-- treccprod.interactions.user_id AS `interactions.user_id`, -->
+<!-- treccprod.interactions.action AS `interactions.action`, -->
+<!-- treccprod.interactions.attempt AS `interactions.attempt`, -->
+<!-- treccprod.interactions.data AS `interactions.data`, -->
+<!-- treccprod.interactions.value AS `interactions.value`, -->
+<!-- treccprod.interactions.created_at AS `interactions.created_at`, -->
+<!-- treccprod.interactions.persistent AS `interactions.persistent`, -->
+<!-- treccprod.interactions.date_created AS `interactions.date_created`, -->
+<!-- treccprod.interactions.pending AS `interactions.pending`, -->
+<!-- treccprod.user_answer_stats.question_id AS `UAS.questionId`, -->
+<!-- treccprod.user_answer_stats.lesson_id AS `UAS.lessonId`, -->
+<!-- treccprod.cdr_ivr01.uniqueid AS `cdr.uniqueId` -->
+<!-- FROM treccprod.interaction_data -->
+<!-- LEFT JOIN treccprod.interactions ON treccprod.interaction_data.interaction_id = treccprod.interactions.id -->
+<!-- LEFT JOIN treccprod.user_answer_stats ON treccprod.interaction_data.data_key = 'question_id' AND treccprod.interaction_data.value = treccprod.user_answer_stats.question_id AND treccprod.interactions.user_id = treccprod.user_answer_stats.user_id -->
+<!-- LEFT JOIN treccprod.cdr_ivr01 ON treccprod.interaction_data.value = treccprod.cdr_ivr01.uniqueid -->
+<!-- WHERE treccprod.interaction_data.id >= %s AND treccprod.interaction_data.id < %s -->
+<!-- #WHERE treccprod.interaction_data.created_at >= '2019-02-27 00:00:00' -->
+<!-- ORDER BY treccprod.interaction_data.id ASC; -->
+<!-- """ -->
+<!-- print TODAY, YESTERDAY -->
+<!-- print " " -->
+<!-- cnx.close() -->
+
+<!-- # print INTERACTIONS_SQL -->
+<!-- INTERACTIONS_START = get_start_interactions_id() -->
+<!-- if INTERACTIONS_START: -->
+<!--     INTERACTIONS_START_ID = INTERACTIONS_START -->
+<!-- LIMIT = 200 -->
+<!-- END = 0 -->
+<!-- print INTERACTIONS_START_ID, INTERACTIONS_END_ID -->
+
+<!-- for i in range(INTERACTIONS_START_ID, INTERACTIONS_END_ID, LIMIT): -->
+<!--     START = i -->
+<!--     END = i + LIMIT -->
+<!--     INTERACTIONS_SQL_NEW = INTERACTIONS_SQL % (START, END) -->
+<!--     #print INTERACTIONS_SQL_NEW -->
+<!--     write_last_id(END) -->
+<!--     print START, END -->
+<!--     output = output_csv(INTERACTIONS_SQL_NEW, -->
+<!--                         "interactions-file-%s-%s-%s" % (INTERACTIONS_START_ID, INTERACTIONS_END_ID, LIMIT), -->
+<!--                         read_type="a+") -->
+<!-- if END: -->
+<!--     if END > INTERACTIONS_END_ID: -->
+<!--         END -= LIMIT -->
+<!--     INTERACTIONS_SQL_NEW = INTERACTIONS_SQL % (END, INTERACTIONS_END_ID) -->
+<!--     #output = output_csv(INTERACTIONS_SQL_NEW, -->
+<!--     #                    "interactions-file-%s-%s-%s" % (INTERACTIONS_START_ID, INTERACTIONS_END_ID, LIMIT), -->
+<!--     #                    read_type="a+") -->
+<!--     #write_last_id(INTERACTIONS_END_ID) -->
+
+<!-- print "" -->
+
+<!-- ``` -->
+
+
+```{r bind the new interactions export with old interactions export OK}
+
+#list all interaction export, find latest export
+allInteractionsExportFiles <- list.files(pattern = "interactions-file-*")
+allInteractionsExportFiles = list.reverse(allInteractionsExportFiles)
+latestInteractionsExport = allInteractionsExportFiles[1]
+latestInteractionsExport_import = read.csv2(file = latestInteractionsExport, header = F, stringsAsFactors = F)
+
+headerNamesInteractions = read.csv2(file = "headerNamesInteractions.csv", header = T, stringsAsFactors = F)
+
+# #list all interaction concats, find latest concat
+allInteractionsConcatFiles <- list.files(pattern = "interactions_concat")
+allInteractionsConcatFiles = list.reverse(allInteractionsConcatFiles)
+latestInteractionsConcat = allInteractionsConcatFiles[1]
+latestInteractionsConcat_import = read.csv2(file = latestInteractionsConcat, header = T, stringsAsFactors = F)
+# #headerNamesInteractions = t(names(latestInteractionsConcat_import))
+# #write.csv2(headerNamesInteractions, file = paste0("headerNamesInteractions.csv"), row.names = F)
+
+latestInteractionsExport_import = setNames(latestInteractionsExport_import, headerNamesInteractions)
+
+#bind together, output as a csv
+allInteractionsData = rbind(latestInteractionsConcat_import, latestInteractionsExport_import)
+write.csv2(allInteractionsData, file = paste0("interactions_concat_",Sys.Date(),".csv"), row.names = F)
+
+message("new interactions file created")
+```
+
+#CDR
+<!-- ```{python CDR new from vikram} -->
+<!-- # encoding=utf8 -->
+<!-- import csv -->
+<!-- import os -->
+<!-- import pickle -->
+<!-- import time -->
+<!-- from datetime import datetime -->
+<!-- from datetime import timedelta -->
+
+<!-- import pymysql -->
+
+<!-- start = time.time() -->
+<!-- cnx = pymysql.connect(user='trecc_user', password='treccuser', -->
+<!--                       host='10.20.20.3', -->
+<!--                       database='treccprod', charset='utf8') -->
+<!-- cursor = cnx.cursor() -->
+<!-- FILE_NAME = 'cdr_id_key.txt' -->
+
+
+<!-- def get_start_cdr_id(): -->
+<!--     dict2 = {} -->
+<!--     if os.path.exists(FILE_NAME): -->
+<!--         file = open(FILE_NAME, 'r+') -->
+<!--         dict2 = pickle.load(file) -->
+<!--     print dict2 -->
+<!--     return dict2.get('last_id', 0) -->
+
+
+<!-- def write_last_id(cdr_id): -->
+<!--     dict = {'last_id': cdr_id}  # this might cause an error, shoudl this be cdr_id or clid? -->
+<!--     file = open(FILE_NAME, 'w') -->
+<!--     pickle.dump(dict, file) -->
+<!--     file.close() -->
+
+<!--     # def write_last_id(interaction_id): -->
+<!--     # dict = {'last_id': interaction_id} -->
+<!--     # file = open(FILE_NAME, 'w') -->
+<!--     # pickle.dump(dict, file) -->
+<!--     # file.close() -->
+
+
+<!-- def find_start_id(table, date, id_name="clid", created_at="calldate"):  # this might cause an error -->
+<!--     sql = "SELECT %s FROM %s WHERE %s>='%s' LIMIT 1" % (id_name, table, created_at, date) -->
+<!--     # print sql -->
+<!--     cursor.execute(sql) -->
+<!--     result = cursor.fetchone() -->
+<!--     return result[0] -->
+
+
+<!-- def output_csv(sql, file_name, read_type="w+"): -->
+<!--     cnx2 = pymysql.connect(user='trecc_user', password='treccuser', -->
+<!--                            host='10.20.20.3', -->
+<!--                            database='treccprod', charset='utf8') -->
+<!--     cursor2 = cnx2.cursor() -->
+<!--     cursor2.execute(sql) -->
+<!--     # print sql -->
+<!--     result = cursor2.fetchall() -->
+<!--     c = csv.writer(open("%s.csv" % file_name, read_type), delimiter=';') -->
+<!--     if read_type == 'w+': -->
+<!--         keys = [i[0] for i in cursor.description] -->
+<!--         c.writerow(keys) -->
+<!--     for x in result: -->
+<!--         x = ['NULL' if x1 is None else x1 for x1 in x] -->
+<!--         c.writerow([unicode(s).encode("utf-8") for s in x]) -->
+
+<!--     cnx2.close() -->
+<!--     print file_name -->
+
+
+<!-- STUDY_START_TIME = "2019-02-09 13:00:00" -->
+<!-- # CDR_START_DATE = "2019-02-20 14:01:28" -->
+
+<!-- # ANSWER_START_ID = find_start_id('user_answer_stats', STUDY_START_TIME) -->
+<!-- # CDR_ID = find_start_id('cdr_ivr01', CDR_START_DATE, "clid", "calldate") -->
+<!-- TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S' -->
+<!-- today_midnight = datetime.now() -->
+<!-- TODAY = datetime.strftime(today_midnight, TIMESTAMP_FORMAT) -->
+<!-- YESTERDAY = datetime.strftime(today_midnight - timedelta(1), TIMESTAMP_FORMAT) -->
+<!-- CDR_START = YESTERDAY -->
+<!-- CDR_END = TODAY -->
+
+<!-- CDR_START_ID = find_start_id('cdr_ivr01', CDR_START, "clid", "calldate") -->
+<!-- CDR_END_ID = find_start_id('cdr_ivr01', CDR_END, "clid", "calldate") -->
+<!-- # USER_START_ID = find_start_id('users', STUDY_START_TIME) -->
+
+<!-- CDR_SQL = """SELECT * FROM treccprod.cdr_ivr01  -->
+<!-- WHERE treccprod.cdr_ivr01.clid >= %s AND treccprod.cdr_ivr01.clid < %s -->
+<!-- ORDER BY treccprod.cdr_ivr01.clid ASC ;""" -->
+
+<!-- # WHERE treccprod.cdr_ivr01.clid >= %s AND treccprod.cdr_ivr01.clid < %s -->
+
+
+<!-- print TODAY, YESTERDAY -->
+<!-- print " " -->
+<!-- cnx.close() -->
+
+<!-- # print CDR_SQL -->
+<!-- # output_csv(CDR_SQL, "cdr-output") -->
+
+<!-- # print CDR_SQL -->
+<!-- CDR_START = get_start_cdr_id() -->
+<!-- if CDR_START: -->
+<!--     CDR_START_ID = CDR_START -->
+<!-- LIMIT = 30000 -->
+<!-- END = 0 -->
+<!-- print CDR_START_ID, CDR_END_ID -->
+
+<!-- for i in range(CDR_START_ID, CDR_END_ID, LIMIT): -->
+<!--     START = i -->
+<!--     END = i + LIMIT -->
+<!--     # CDR_SQL_NEW = CDR_SQL % (START) -->
+<!--     CDR_SQL_NEW = CDR_SQL % (START, END) -->
+<!--     #print CDR_SQL_NEW -->
+<!--     write_last_id(END) -->
+<!--     print START, END -->
+<!--     output = output_csv(CDR_SQL_NEW, -->
+<!--                         "cdr-file-%s-%s-%s" % (CDR_START_ID, CDR_END_ID, LIMIT), -->
+<!--                         read_type="a+") -->
+<!-- if END: -->
+<!--     if END > CDR_END_ID: -->
+<!--         END -= LIMIT -->
+<!--     CDR_SQL_NEW = CDR_SQL % (END, CDR_END_ID) -->
+<!--     #output = output_csv(CDR_SQL_NEW, -->
+<!--     #                    "cdr-file-%s-%s-%s" % (CDR_START_ID, CDR_END_ID, LIMIT), -->
+<!--     #                    read_type="a+") -->
+<!--     #write_last_id(CDR_END_ID) -->
+
+<!-- print "" -->
+
+<!-- ``` -->
+
+
+```{r bind the new cdr export with old cdr export OK}
+
+#list all interaction export, find latest export
+allCDRExportFiles <- list.files(pattern = "cdr-file-*",recursive = FALSE)
+allCDRExportFiles = list.reverse(allCDRExportFiles)
+latestCDRExport = allCDRExportFiles[1]
+latestCDRExport_import = read.csv2(file = latestCDRExport, header = F, stringsAsFactors = F)
+
+headerNamesCDR = read.csv2(file = "headerNamesCDR.csv", header = T, stringsAsFactors = F)
+
+# #list all interaction concats, find latest concat
+allCDRConcatFiles <- list.files(pattern = "cdr_concat")
+allCDRConcatFiles = list.reverse(allCDRConcatFiles)
+latestCDRConcat = allCDRConcatFiles[1]
+latestCDRConcat_import = read.csv2(file = latestCDRConcat, header = T, stringsAsFactors = F)
+#headerNamesInteractions = t(names(latestInteractionsConcat_import))
+#write.csv2(headerNamesInteractions, file = paste0("headerNamesInteractions.csv"), row.names = F)
+
+latestCDRExport_import = setNames(latestCDRExport_import, headerNamesCDR)
+
+#bind together, output as a csv
+allCDRData = rbind(latestCDRConcat_import, latestCDRExport_import)
+write.csv2(allCDRData, file = paste0("cdr_concat_",Sys.Date(),".csv"), row.names = F)
+
+message("new CDR file created")
+```
+
+#USERS
+```{python users latest export}
+# encoding=utf8
+import csv
+import pymysql
+import os
+import pickle
+import time
+import pandas
+from datetime import datetime
+from datetime import timedelta
+
+start = time.time()
+
+def find_start_id(table, date, id_name="id", created_at="created_at"):
+    sql = "SELECT %s FROM %s WHERE %s>='%s' LIMIT 1" % (id_name, table, created_at, date)
+    # print sql
+    cursor.execute(sql)
+    result = cursor.fetchone()
+    return result[0]
+    
+def output_csv(sql, file_name, read_type="w+"):
+    cnx2 = pymysql.connect(user='trecc_user', password='treccuser',
+                           host='10.20.20.3',
+                           database='treccprod', charset='utf8')
+    cursor2 = cnx2.cursor()
+    cursor2.execute(sql)
+    # print sql
+    result = cursor2.fetchall()
+    c = csv.writer(open("%s.csv" % file_name, read_type), delimiter=';')
+    if read_type == 'w+':
+        keys = [i[0] for i in cursor.description]
+        c.writerow(keys)
+    for x in result:
+        x = ['NULL' if x1 is None else x1 for x1 in x]
+        c.writerow([unicode(s).encode("utf-8") for s in x])
+
+    cnx2.close()
+    print file_name
+
+start = time.time()
+cnx = pymysql.connect(user='trecc_user', password='treccuser',
+                      host='10.20.20.3',
+                      database='treccprod', charset='utf8')
+cursor = cnx.cursor()
+
+USER_START_TIME = "2019-01-26 00:00:00"
+
+TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
+today_midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+TODAY = datetime.strftime(today_midnight, TIMESTAMP_FORMAT)
+YESTERDAY = datetime.strftime(today_midnight - timedelta(1), TIMESTAMP_FORMAT)
+
+TODAY_DATE = datetime.today().strftime('%Y-%m-%d')
+
+USER_START_ID = find_start_id('users', USER_START_TIME)
+
+USER_SQL = """SELECT * FROM treccprod.users WHERE treccprod.users.id >= %s;""" % (USER_START_ID)
+
+#print TODAY, YESTERDAY
+print " "
+cnx.close()
+
+print "User query complete."
+
+output_csv(USER_SQL, "users-file-%s" % (TODAY_DATE))
+
+end = time.time()
+
+print "Duration (in seconds): ", end - start
+print "Total Rows is: ", len(USER_SQL)
+
+
+```
+
+```{r give the users table export the same header as prior users tables OK}
+
+#list all interaction export, find latest export
+allUsersExportFiles <- list.files(pattern = "users-file-*", recursive = FALSE)
+allUsersExportFiles = list.reverse(allUsersExportFiles)
+latestUsersExport = allUsersExportFiles[1]
+latestUsersExport_import = read.csv2(file = latestUsersExport, header = F, stringsAsFactors = F)
+#delete row 1 with bad header names
+latestUsersExport_import = latestUsersExport_import[-c(1), ] 
+
+#read in users headers
+headerNamesUsers = read.csv2("headerNamesUsers.csv", header = T, stringsAsFactors = F)
+
+#allUsersConcatFiles <- list.files(pattern = "users_")
+#allUsersConcatFiles = list.reverse(allUsersConcatFiles)
+#latestUsersConcat = allUsersConcatFiles[1]
+#latestUsersConcat_import = read.csv2(file = latestUsersConcat, header = T, stringsAsFactors = F)
+#headerNamesUser = t(names(latestUsersConcat_import))
+#write.csv2(headerNamesUser, file = "headerNamesUsers.csv", row.names = F)
+
+#add imported header names to the current export
+latestUsersExport_import = setNames(latestUsersExport_import, headerNamesUsers)
+
+#output as a csv
+#allInteractionsData = rbind(latestInteractionsConcat_import, latestInteractionsExport_import)
+write.csv2(latestUsersExport_import, file = paste0("users_",Sys.Date(),".csv"), row.names = F, quote = F)
+
+message("new users file created")
+
+```
+
+
+#UAS
+```{python UAS}
+
+# encoding=utf8
+import csv
+import os
+import pickle
+import time
+from datetime import datetime
+from datetime import timedelta
+
+import pymysql
+
+start = time.time()
+cnx = pymysql.connect(user='trecc_user', password='treccuser',
+                      host='10.20.20.3',
+                      database='treccprod', charset='utf8')
+cursor = cnx.cursor()
+
+def output_csv(sql, file_name, read_type="w+"):
+    cnx2 = pymysql.connect(user='trecc_user', password='treccuser',
+                           host='10.20.20.3',
+                           database='treccprod', charset='utf8')
+    cursor2 = cnx2.cursor()
+    cursor2.execute(sql)
+    # print sql
+    result = cursor2.fetchall()
+    c = csv.writer(open("%s.csv" % file_name, read_type), delimiter=';')
+    if read_type == 'w+':
+        keys = [i[0] for i in cursor.description]
+        c.writerow(keys)
+    for x in result:
+        x = ['NULL' if x1 is None else x1 for x1 in x]
+        c.writerow([unicode(s).encode("utf-8") for s in x])
+
+    cnx2.close()
+    print file_name
+
+
+def find_start_id(table, date, id_name="id", created_at="created_at"):
+    sql = "SELECT %s FROM %s WHERE %s>='%s' LIMIT 1" % (id_name, table, created_at, date)
+    # print sql
+    cursor.execute(sql)
+    result = cursor.fetchone()
+    return result[0]
+
+
+STUDY_START_TIME = "2019-02-09 13:00:00"
+#CDR_START_DATE = "2019-02-20 14:01:28"
+
+ANSWER_START_ID = find_start_id('user_answer_stats', STUDY_START_TIME)
+#CDR_ID = find_start_id('cdr_ivr01', CDR_START_DATE, "clid", "calldate")
+TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
+today_midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+TODAY = datetime.strftime(today_midnight, TIMESTAMP_FORMAT)
+YESTERDAY = datetime.strftime(today_midnight - timedelta(1), TIMESTAMP_FORMAT)
+
+TODAY_DATE = datetime.today().strftime('%Y-%m-%d')
+
+ANSWER_SQL = """
+SELECT
+treccprod.user_answer_stats.id AS `UAS:id`,
+treccprod.user_answer_stats.completed AS `UAS:completed`,
+treccprod.user_answer_stats.correct AS `UAS:correct`,
+treccprod.user_answer_stats.correct_option AS `UAS:correct_option`,
+treccprod.user_answer_stats.created_at AS `UAS:created_at`,
+treccprod.users.mobile_number AS `users:mobile_number`,
+treccprod.users.id AS `users:id`,
+treccprod.user_answer_stats.lesson_id AS `UAS:lesson_id`,
+treccprod.user_answer_stats.number_of_attempts AS `UAS:number_of_attempts`,
+treccprod.user_answer_stats.option_given AS `UAS:option_given`,
+treccprod.user_answer_stats.question_id AS `UAS:question_id`,
+treccprod.user_answer_stats.unit_id AS `UAS:unit_id`,
+treccprod.user_answer_stats.updated_at AS `UAS:updated_at`,
+treccprod.user_answer_stats.user_id AS `UAS:user_id`,
+treccprod.user_answer_stats.user_kc_stats_id AS `UAS:user_kc_stats_id`,
+treccprod.cms_options.correct AS `cmsOptions:correct`,
+treccprod.cms_options.id AS `cmsOptions:id`,
+treccprod.cms_options.option_text AS `cmsOptions:option_text`,
+treccprod.cms_options.question_id AS `cmsOptions:question_id`,
+treccprod.cms_options.token_ids AS `cmsOptions:token_ids`,
+treccprod.cms_questions.answer AS `cmsQuestions:answer`,
+treccprod.cms_questions.difficulty_level_token AS `cmsQuestions:difficulty_level_token`,
+treccprod.cms_questions.difficulty_level_trial AS `cmsQuestions:difficulty_level_trial`,
+treccprod.cms_questions.distractor_tokens AS `cmsQuestions:distractor_tokens`,
+treccprod.cms_questions.id AS `cmsQuestions:id`,
+treccprod.cms_questions.kc_id AS `cmsQuestions:kc_id`,
+treccprod.cms_questions.question_number AS `cmsQuestions:question_number`,
+treccprod.cms_questions.question_recordings AS `cmsQuestions:question_recordings`,
+treccprod.cms_questions.question_text AS `cmsQuestions:question_text`,
+treccprod.cms_questions.token_a_id AS `cmsQuestions:token_a_id`,
+treccprod.cms_questions.text_output_structure AS `cmsQuestions:text_output_structure`,
+treccprod.cms_questions.token_b_id AS `cmsQuestions:token_b_id`,
+treccprod.cms_questions.token_c_id AS `cmsQuestions:token_c_id`,
+treccprod.cms_questions.token_id AS `cmsQuestions:token_id`,
+treccprod.cms_questions.trial_id AS `cmsQuestions:trial_id`,
+treccprod.cms_questions.unit_id AS `cmsQuestions:unit_id`,
+a.id AS `cmsQuestions:token_id_a`,
+a.language_id AS `language_id_token_a`,
+a.open_closed AS `open_closed_token_a`,
+a.phonetics_auditory AS `phonetics_auditory_token_a`,
+a.simple_complex AS `simple_complex_token_a`,
+a.soundfile_name AS `soundfile_name_token_a`,
+a.spelling_visual AS `spelling_visual_token_a`,
+a.syllable_structure AS `syllable_structure_token_a`,
+a.token_type_id AS `token_type_id_token_a`,
+b.id AS `token_id_b`,
+b.language_id AS `language_id_token_b`,
+b.open_closed AS `open_closed_token_b`,
+b.phonetics_auditory AS `phonetics_auditory_token_b`,
+b.simple_complex AS `simple_complex_token_b`,
+b.soundfile_name AS `soundfile_name_token_b`,
+b.spelling_visual AS `spelling_visual_token_b`,
+b.syllable_structure AS `syllable_structure_token_b`,
+b.token_type_id AS `token_type_id_token_b`,
+c.id AS `cmsTokens_C:token_id_c`,
+c.language_id AS `language_id_token_c`,
+c.open_closed AS `open_closed_token_c`,
+c.phonetics_auditory AS `phonetics_auditory_token_c`,
+c.simple_complex AS `simple_complex_token_c`,
+c.soundfile_name AS `soundfile_name_token_c`,
+c.spelling_visual AS `spelling_visual_token_c`,
+c.syllable_structure AS `syllable_structure_token_c`,
+c.token_type_id AS `token_type_id_token_c`,
+treccprod.cms_units.id AS `cmsUnits:id`,
+treccprod.cms_units.theme AS `cmuUnits:theme`,
+treccprod.users.date_created AS `users:date_created`,
+treccprod.users.email AS `users:email`,
+treccprod.users.lang AS `users:lang`,
+treccprod.user_trial_mastery.questions AS `userTrialMastery:questions`,
+treccprod.user_trial_mastery.questions_correct AS `userTrialMastery:questions_correct`,
+treccprod.user_trial_mastery.trial_mastery_score AS `userTrialMastery:trial_mastery_score`,
+treccprod.user_trial_mastery.unit_passed AS `userTrialMastery:unit_passed`,
+treccprod.user_trial_mastery.completed AS `userTrialMastery:completed`,
+treccprod.user_trial_mastery.trial_started_at AS `userTrialMastery:trial_started_at`,
+treccprod.user_trial_mastery.trial_completed_at AS `userTrialMastery:trial_completed_at`,
+treccprod.user_trial_mastery.api_threshold AS `userTrialMastery:api_threshold`,
+treccprod.user_trial_mastery.api_questions AS `userTrialMastery:api_questions`,
+treccprod.user_trial_mastery.api_max_questions AS `userTrialMastery:api_max_questions`,
+treccprod.user_trial_mastery.max_questions_reached AS `userTrialMastery:max_questions_reached`,
+treccprod.user_kc_stats.id AS `userKCstats:id`,
+treccprod.user_kc_stats.kc_id AS `userKCstats:kc_id`,
+treccprod.user_kc_stats.unit_id AS `userKCstats:unit_id`,
+treccprod.user_kc_stats.user_id AS `userKCstats:user_id`,
+treccprod.user_kc_stats.user_mastery_score AS `userKCstats:user_mastery_score`,
+#treccprod.users_to_units.id AS `usersToUnits:id`,
+#treccprod.users_to_units.unit_id AS `usersToUnits:id`,
+#treccprod.users_to_units.current AS `usersToUnits:current`,
+treccprod.users_progress.id AS `userProgress:id`,
+treccprod.users_progress.user_id AS `userProgress:user_id`,
+treccprod.users_progress.question_ids AS `userProgress:lessonQuestionsRemaining`,
+treccprod.users_progress.attempt AS `userProgress:attempt`,
+treccprod.users_progress.completed AS `userProgress:completed`,
+treccprod.users_progress.current_question AS `userProgress:current_question`,
+treccprod.users_progress.created_at AS `userProgress:created_at`,
+treccprod.sessions.mobile_number AS `sessions:mobile_number`,
+treccprod.sessions.user_id AS `sessions:user_id`
+#treccprod.interaction_data.value AS `interactionData:dataValue`
+FROM treccprod.user_answer_stats
+LEFT JOIN treccprod.cms_options ON treccprod.user_answer_stats.option_given = treccprod.cms_options.id
+LEFT JOIN treccprod.cms_units ON treccprod.user_answer_stats.unit_id = treccprod.cms_units.id
+LEFT JOIN treccprod.sessions ON treccprod.user_answer_stats.user_id = treccprod.sessions.user_id
+LEFT JOIN treccprod.users ON treccprod.sessions.mobile_number = treccprod.users.mobile_number
+LEFT JOIN treccprod.cms_questions ON treccprod.user_answer_stats.question_id = treccprod.cms_questions.id
+LEFT JOIN treccprod.user_kc_stats ON treccprod.user_answer_stats.user_kc_stats_id = treccprod.user_kc_stats.id
+#LEFT JOIN treccprod.users_to_units ON treccprod.user_answer_stats.unit_id = treccprod.users_to_units.unit_id AND treccprod.users_to_units.user_id = treccprod.sessions.user_id
+LEFT JOIN treccprod.cms_tokens ON treccprod.cms_tokens.id = treccprod.cms_questions.token_a_id
+LEFT JOIN cms_tokens AS a ON `a`.`id` = treccprod.cms_questions.token_a_id
+LEFT JOIN cms_tokens AS b ON `b`.`id` = treccprod.cms_questions.token_b_id
+LEFT JOIN cms_tokens AS c ON `c`.`id` = treccprod.cms_questions.token_c_id
+LEFT JOIN treccprod.user_trial_mastery ON treccprod.user_trial_mastery.trial_id = treccprod.cms_questions.trial_id AND treccprod.user_trial_mastery.user_id = treccprod.user_answer_stats.user_id
+LEFT JOIN treccprod.users_progress ON treccprod.users_progress.id = treccprod.user_answer_stats.lesson_id
+#LEFT JOIN treccprod.interaction_data ON treccprod.interaction_data.data_key = 'question_id' AND treccprod.interaction_data.value = treccprod.user_answer_stats.question_id
+#LEFT JOIN treccprod.interaction_data ON treccprod.interaction_data.value = treccprod.user_answer_stats.question_id
+WHERE treccprod.user_answer_stats.id >= %s
+ORDER BY treccprod.user_answer_stats.id DESC;
+""" % (ANSWER_START_ID)
+
+print TODAY, YESTERDAY
+print " "
+cnx.close()
+#print ANSWER_SQL
+output_csv(ANSWER_SQL, "user-answer-stats-file-%s" % (TODAY_DATE))
+
+end = time.time()
+
+print "Duration (in seconds): ", end - start
+print "Total Rows is: ", len(ANSWER_SQL)
+
+```
+
+```{r give the UAS table export the same header as prior UAS tables}
+
+#list all interaction export, find latest export
+allUASExportFiles <- list.files(pattern = "user-answer-stats-file-*",recursive = FALSE)
+allUASExportFiles = list.reverse(allUASExportFiles)
+latestUASExport = allUASExportFiles[1]
+latestUASExport_import = read.csv2(file = latestUASExport, header = F, stringsAsFactors = F)
+#delete row 1 with bad header names
+latestUASExport_import = latestUASExport_import[-c(1), ]
+
+#read in users headers
+headerNamesUAS = read.csv2("headerNamesUAS.csv", header = T, stringsAsFactors = F)
+
+#allUASConcatFiles <- list.files(pattern = "UAS_")
+#allUASConcatFiles = list.reverse(allUASConcatFiles)
+#latestUASConcat = allUASConcatFiles[1]
+#latestUASConcat_import = read.csv2(file = latestUASConcat, header = T, stringsAsFactors = F)
+#headerNamesUAS = t(names(latestUASConcat_import))
+#write.csv2(headerNamesUAS, file = "headerNamesUAS.csv", row.names = F)
+
+#add imported header names to the current export
+latestUASExport_import = setNames(latestUASExport_import, headerNamesUAS)
+
+#output as a csv
+#allInteractionsData = rbind(latestInteractionsConcat_import, latestInteractionsExport_import)
+write.csv2(latestUASExport_import, file = paste0("UAS_",Sys.Date(),".csv"), row.names = F)
+
+message("new UAS file created")
+
+message("all new output generated. script complete.")
+
+```

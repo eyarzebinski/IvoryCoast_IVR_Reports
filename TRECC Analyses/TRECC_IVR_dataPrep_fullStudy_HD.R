@@ -1,30 +1,28 @@
 ##############################################
 #### before you run this code, read below ####
 
-# under the heading "run the latest data!" below, update the date to the latest. You can do this by:
+# 1. open connection to eneza database
+# 2. navigate to interactions_SQL.py and run in command prompt / terminal
+# 3. navigate to cdr_SQL.py and run in command prompt / terminal
+# 4. run all code chunks in TRECC_datasetGeneration_fullStudy.Rmd <-- DO NOT KNIT, JUST CLICK "RUN ALL"
+# 5. in this R script (dataPrep), change dataDate to the most recent data date that you want to run.\
+# 6. call this R script from either TRECC_IVR_PerformanceAnalyses.Rmd or TRECC_IVR_fullStudy_UsageAnalysis.Rmd as appropriate; it is designed to work for both.
 
-#1. open connection to eneza database
-#2. open TRECC_datasetGeneration_fullStudy.Rmd
-#3. navigate to interactions_SQL.py and run in command prompt
-#4. navigate to cdr_SQL.py and run in command prompt
-#5. run all code chunks in TRECC_datasetGeneration_fullStudy.Rmd <-- DO NOT KNIT, JUST RUN
-#6. in this R script, change dataDate to the most recent data date that you want to run.\
-#7. call this R script from either TRECC_IVR_PerformanceAnalyses.Rmd or TRECC_IVR_fullStudy_UsageAnalysis.Rmd as appropriate; it is designed to work for both.
-
-
-#You will also need the csvs <add phone number csvs for the full study here> for the code to run properly.
-#These will not be shared on github for privacy reasons. Contact me for them if you need them.
+#You will also need the following csvs for the code to run properly. These will not be shared on github for privacy reasons.
+# 1. phoneNumberDemographicMapping.csv
+# 2. testingNumbers.csv
+# 3. childId_adultPhone_20190415.csv
+# 4. Phone Contact Input Template.csv
 
 ######################################################################################
 #### setup ####
 
 ####CHANGE THIS EACH TIME TO POINT TO THE RIGHT FILES####
 #set file date
-dataDate = "2019-05-13"
+dataDate = "2019-05-15"
 
 #bad ids are testing accounts or duplicates of valid numbers confirmed not to be used.
 badIds = c(1, 2, 3, 44, 45, 46, 51, 53, 54, 56, 57, 64, 66, 68, 69, 74, 105, 147, 148, 149, 150, 192, 193, 194, 196, 238, 239, 240, 988)
-testingNumbers = c(22588888889, 88888889, 22588888888, 88888888, 57101759, 22557101759, 22575427722, 75427722, 22509250007, 09250007, 14129614447, 57271263, 22557271263)
 
 #load libraries
 library(tidyverse)
@@ -42,7 +40,7 @@ library(rlist)
 library(gtools)
 library(plotly)
 
-#data cannot go on github due to user mobile numbers in raw data
+#raw data cannot go on github due to mobile numbers in raw data
 #store it somewhere else local on your machine and call it
 
 #conditional setwd
@@ -71,6 +69,9 @@ adultPhoneMapping = read.csv("childId_adultPhone_20190415.csv", stringsAsFactors
 #load University of Delaware Redcap ID mapping
 redcapID = read.csv("Phone Contact Input Template.csv", stringsAsFactors = F)
 
+#load testingNumbers
+testingNumbers = read.csv("testingNumbers.csv", header = F, stringsAsFactors = F)
+
 ######################################################################################
 
 #prep redcapId
@@ -86,7 +87,7 @@ redcapID = redcapID %>%
 
 #Basic cdr processing to find correct user counts
 cdrData = as_tibble(cdrData) %>%
-  filter(!src %in% testingNumbers) %>%
+  filter(!src %in% testingNumbers$V1) %>%
   mutate(date = as.Date(substr(calldate, 1, 10)),
          time = substr(calldate, 12, 19),
          dateTime = as.POSIXct(strptime(paste(date, " ", time), "%Y-%m-%d %H:%M:%S")),
@@ -1260,10 +1261,12 @@ interactionsData <- interactionsData %>%
   mutate(treccIDuniqueID = paste0(treccUserId, cdr.uniqueId)) %>%
   left_join(cdr_callNumber, by = c("treccIDuniqueID"))
 
-#merge call number into UAS
+#merge call number into UAS and filter out any tokens with a NULL value
 UASdata <- UASdata %>%
   mutate(treccIDuniqueID = paste0(treccUserId, cdr.uniqueId)) %>%
-  left_join(cdr_callNumber, by = c("treccIDuniqueID"))
+  left_join(cdr_callNumber, by = c("treccIDuniqueID")) %>%
+  filter(syllable_structure_token_a != "NULL")
+
 
 cdrData_userCalls = cdrData_userCalls %>%
   filter(!is.na(mobileNumberLong))
@@ -1288,9 +1291,13 @@ UASdata.lastattempt <- UASdata %>%
 UASdata.questionid <- merge(UASdata.firstattempt,UASdata.lastattempt,by=c('studyPhoneId','cmsQuestions.id'))
 
 # Record the number of answer options for each question (Y/N=2, A/B/C=3)
-UASdata$options = 3
+UASdata = as_tibble(UASdata) %>%
+  mutate(options = ifelse(is.na(UASdata$cmsQuestions.token_c_id), 2, 3)) %>%
+  filter(syllable_structure_token_a != "NULL")
+
+#UASdata$options = 3
 two_choice = is.na(UASdata$cmsQuestions.token_c_id)
-UASdata[two_choice,]$options = 2
+#UASdata[two_choice,]$options = 2
 
 # This function will be useful later for comparing 2-option and 3-option questions on equal footing
 zbin <- function(acc,n_options){

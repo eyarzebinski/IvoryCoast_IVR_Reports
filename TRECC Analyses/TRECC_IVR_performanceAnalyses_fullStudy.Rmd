@@ -212,8 +212,10 @@ datatable(
 ###Summary of Question Distribution
 ####This provides a quick debug reference.
 ```{r question summary, echo = F}
-message(paste("Currently across all units:",n_distinct(questionList$cmsQuestions.question_text),"unique questions."))
-message(paste("There are",nrow(questionList),"rows in the Question List above."))
+message(
+  paste0("Currently across all units: ",n_distinct(questionList$cmsQuestions.question_text)," unique questions."),"\n",
+  paste0("There are ",nrow(questionList)," rows in the Question List above.")
+  )
 
 ```
 
@@ -397,7 +399,8 @@ datatable(
 ###Summary of Token Distribution
 ####For quick debug.
 ```{r token summary, echo = F}
-message(paste("Currently across all tokens:",nrow(tokenDistribution_A),"unique token As,",nrow(tokenDistribution_B), "unique token Bs, and",nrow(tokenDistribution_C),"unique token Cs have been used in at least one question with at least one student. There are",nrow(tokenDistribution_distractorBC),"unique combinations of Tokens B and C."))
+message(
+  paste0("Currently across all tokens: ",nrow(tokenDistribution_A)," unique token As, ",nrow(tokenDistribution_B), " unique token Bs, and ",nrow(tokenDistribution_C)," unique token Cs have been used in at least one question with at least one student.\nThere are ",nrow(tokenDistribution_distractorBC)," unique combinations of Tokens B and C."))
 ```
 
 ###General token presentation
@@ -612,64 +615,112 @@ summary(token_effect_L)
 ##5. Unit 1 Analysis
 
 ###Who passed Unit 1?
-####The table below displays the four trials for unit 1 and the average questions students attempted
+####The tabs below display content for unit 1 and the attempts for each content area by error rate
 ```{r, echo = F}
 
 #this makes the raw data one line for each attempt
-UASdata_learningCurve_trial = UASdata %>%
-  select(treccId_phoneId, UAS.unit_id, cmsQuestions.trial_id, cmsQuestions.question_number, UAS.created_at, UAS.id, UAS.correct) %>%
+UASdata_learningCurve_dataPrep = UASdata %>%
+  select(treccId_phoneId, UAS.unit_id, cmsQuestions.trial_id, cmsQuestions.question_number, UAS.created_at, UAS.id, UAS.correct, syllable_structure_token_a) %>%
+  #reverse the correctness column to get the error rate
   mutate(errorRate = 1-UAS.correct) %>%
   arrange(treccId_phoneId, cmsQuestions.trial_id, UAS.created_at) %>%
   group_by(treccId_phoneId, cmsQuestions.trial_id, cmsQuestions.question_number) %>%
-
-#need to cumsum a column of "new trial"
-  mutate(opportunity = row_number()) %>%
-  arrange(treccId_phoneId, cmsQuestions.trial_id, opportunity) %>%
-  mutate(rollingAverage = cumsum(UAS.correct) / seq_along(opportunity),
-         promotionReady = ifelse(rollingAverage >= .6 & opportunity >= 15, 1, 0)) %>%
+  #add in trial opportunity
+  mutate(opportunity_trial = row_number()) %>%
+  arrange(treccId_phoneId, cmsQuestions.trial_id, opportunity_trial) %>%
+  #calculate a rolling average of correct attempts across all attempts
+  mutate(rollingAverage_trial = cumsum(UAS.correct) / seq_along(opportunity_trial),
+         promotionReady_trial = ifelse(rollingAverage_trial >= .6 & opportunity_trial >= 15, 1, 0)) %>%
   ungroup() %>%
+  #add in syllable opportunity
+  arrange(treccId_phoneId, syllable_structure_token_a, UAS.created_at) %>%
+  group_by(treccId_phoneId, syllable_structure_token_a) %>%
+  mutate(opportunity_syllable = row_number()) %>%
+  arrange(treccId_phoneId, syllable_structure_token_a, opportunity_trial) %>%
+  mutate(rollingAverage_syllable = cumsum(UAS.correct) / seq_along(opportunity_syllable),
+         promotionReady_syllable = ifelse(rollingAverage_syllable >= .6 & opportunity_syllable >= 15, 1, 0)) %>%
+  #per user, find the max unit id to determine whether a user passed unit 1
   group_by(treccId_phoneId) %>%
   mutate(maxUnit = max(UAS.unit_id),
          passedUnit1 = as.character(ifelse(maxUnit > 1, 1, 0))) %>%
   ungroup() %>%
-  group_by(UAS.unit_id, cmsQuestions.trial_id, opportunity) %>%
-  mutate(userCountPerOpportunity = n_distinct(treccId_phoneId)) %>%
+  group_by(UAS.unit_id, cmsQuestions.trial_id, opportunity_trial) %>%
+  mutate(userCountPerOpportunity_trial = n_distinct(treccId_phoneId)) %>%
+  group_by(UAS.unit_id, syllable_structure_token_a, opportunity_trial) %>%
+  mutate(userCountPerOpportunity_syllable = n_distinct(treccId_phoneId)) %>%
   ungroup()
 
-UASdata_unit1Promotion = UASdata_learningCurve_trial %>%
-  filter(passedUnit1 == 1,
-         UAS.unit_id == 1) %>%
-  arrange(treccId_phoneId, cmsQuestions.trial_id, opportunity) %>%
-  mutate(promotionPoint = ifelse(treccId_phoneId == lag(treccId_phoneId) & cmsQuestions.trial_id == lag(cmsQuestions.trial_id) & promotionReady == 1 & lag(promotionReady == 0),1,0)) %>%
-  filter(promotionPoint == 1) %>%
-  mutate(falsePromotion = ifelse(treccId_phoneId == lag(treccId_phoneId) & cmsQuestions.trial_id == lag(cmsQuestions.trial_id),1,0)) %>%
-  filter(falsePromotion != 1) %>%
-  group_by(UAS.unit_id, cmsQuestions.trial_id) %>%
-  summarize(avgQuestionsBeforePromotion = round(mean(opportunity),2),
-            sdQuestionsBeforePromotion = round(sd(opportunity),2),
-            avgMastery = round(mean(rollingAverage),2),
-            sdMastery = round(sd(rollingAverage),2),
-            nStudents = n_distinct(treccId_phoneId))
+#trial dataset for unit 1 only
+UASdata_learningCurve_trial = UASdata_learningCurve_dataPrep %>%
+  filter(UAS.unit_id == 1) %>%
+  group_by(treccId_phoneId, passedUnit1, cmsQuestions.trial_id) %>%
+  summarize(maxOpportunity_trial = max(opportunity_trial))
 
-datatable(
-  UASdata_unit1Promotion,
-  rownames = FALSE,
-  filter = "top",
-  extensions = 'FixedColumns',
-  options = list(
-  scrollX = TRUE,
-  scrollCollapse = TRUE
-))
+#syllable dataset for unit 1 only
+UASdata_learningCurve_syllable = UASdata_learningCurve_dataPrep %>%
+  filter(UAS.unit_id == 1) %>%
+  group_by(treccId_phoneId, passedUnit1, syllable_structure_token_a) %>%
+  summarize(maxOpportunity_syllable = max(opportunity_syllable))
 
+# #uncomment this to create the trial table below.
+# UASdata_trial_unit1Promotion = UASdata_learningCurve_dataPrep %>%
+#   filter(
+#     passedUnit1 == 1,
+#     UAS.unit_id == 1
+#          ) %>%
+#   arrange(treccId_phoneId, cmsQuestions.trial_id, opportunity_trial) %>%
+#   mutate(promotionPoint_trial = ifelse(treccId_phoneId == lag(treccId_phoneId) & cmsQuestions.trial_id == lag(cmsQuestions.trial_id) & promotionReady_trial == 1 & lag(promotionReady_trial == 0),1,0)) %>%
+#   filter(promotionPoint_trial == 1) %>%
+#   mutate(falsePromotion = ifelse(treccId_phoneId == lag(treccId_phoneId) & cmsQuestions.trial_id == lag(cmsQuestions.trial_id),1,0)) %>%
+#   filter(falsePromotion != 1)
+# 
+# UASdata_unit1Promotion_trial_table = UASdata_unit1Promotion %>%
+#   group_by(UAS.unit_id, cmsQuestions.trial_id) %>%
+#   summarize(avgAttemptBeforePromotion = round(mean(opportunity_trial),2),
+#             sdAttemptsBeforePromotion = round(sd(opportunity_trial),2),
+#             avgMastery = round(mean(rollingAverage_trial),2),
+#             sdMastery = round(sd(rollingAverage_trial),2),
+#             nStudents = n_distinct(treccId_phoneId))
+# 
+# datatable(
+#   UASdata_unit1Promotion_trial_table,
+#   rownames = FALSE,
+#   filter = "top",
+#   extensions = 'FixedColumns',
+#   options = list(
+#   scrollX = TRUE,
+#   scrollCollapse = TRUE
+# ))
 
 #this makes the raw data one line for each opportunity
-UASdata_learningCurve_trial_oneLinePerOpp = UASdata_learningCurve_trial %>%
+UASdata_learningCurve_trial_oneLinePerOpp = UASdata_learningCurve_dataPrep %>%
   #select(treccId_phoneId, UAS.unit_id, cmsQuestions.trial_id, UAS.created_at, UAS.id, UAS.correct) %>%
   #arrange(treccId_phoneId, cmsQuestions.trial_id, UAS.created_at) %>%
-  group_by(passedUnit1, treccId_phoneId, cmsQuestions.trial_id, opportunity) %>%
-  mutate(errorRate = mean(errorRate)) %>%
-   ungroup()
+  group_by(passedUnit1, treccId_phoneId, cmsQuestions.trial_id, UAS.unit_id, opportunity_trial) %>%
+  summarize(errorRate_trial = mean(errorRate)) %>%
+  group_by(passedUnit1, cmsQuestions.trial_id, UAS.unit_id, opportunity_trial) %>%
+  summarize(errorRate_trial = mean(errorRate_trial),
+            userCountPerOpportunity_trial = n_distinct(treccId_phoneId)) %>%
+  ungroup()
   # group_by(treccId_phoneId) %>%
+  # mutate(maxUnit = max(as.numeric(UAS.unit_id)),
+  #        passedUnit1 = ifelse(maxUnit > 1, 1, 0)) %>%
+  # ungroup() %>%
+  # group_by(passedUnit1, UAS.unit_id, cmsQuestions.trial_id, opportunity) %>%
+  # summarize(errorRate = 1-mean(UAS.correct),
+  #           userCountPerOpportunity = n_distinct(treccId_phoneId)) %>%
+  # ungroup()
+
+#this makes the raw data one line for each opportunity
+UASdata_learningCurve_syllable_oneLinePerOpp = UASdata_learningCurve_dataPrep %>%
+  #select(treccId_phoneId, UAS.unit_id, cmsQuestions.trial_id, UAS.created_at, UAS.id, UAS.correct) %>%
+  #arrange(treccId_phoneId, cmsQuestions.trial_id, UAS.created_at) %>%
+  group_by(passedUnit1, treccId_phoneId, syllable_structure_token_a, UAS.unit_id, opportunity_syllable) %>%
+  summarize(errorRate_syllable = mean(errorRate)) %>%
+  group_by(passedUnit1, syllable_structure_token_a, UAS.unit_id, opportunity_syllable) %>%
+  summarize(errorRate_syllable = mean(errorRate_syllable),
+            userCountPerOpportunity_syllable = n_distinct(treccId_phoneId)) %>%
+  ungroup()  # group_by(treccId_phoneId) %>%
   # mutate(maxUnit = max(as.numeric(UAS.unit_id)),
   #        passedUnit1 = ifelse(maxUnit > 1, 1, 0)) %>%
   # ungroup() %>%
@@ -680,10 +731,160 @@ UASdata_learningCurve_trial_oneLinePerOpp = UASdata_learningCurve_trial %>%
 
 ```
 
-###Learning Curves
-####Data filtered for unit 1 content with 10+ child users per opportunity.
+
+###Average Opportunity Counts
+####Question performance for children who passed / did not pass Unit 1
+####{.tabset}
+#####Unit 1 Question 1
+```{r, echo = F}
+UASdata_learningCurve_trial_comparison = UASdata_learningCurve_trial %>%
+  filter(cmsQuestions.trial_id == 1)
+  
+t.test(UASdata_learningCurve_trial_comparison$maxOpportunity_trial~UASdata_learningCurve_trial_comparison$passedUnit1) # where y is numeric and x is a binary factor
+
+message(
+  paste0(
+    paste0("avg opportunity count on question ", unique(UASdata_learningCurve_trial_comparison$cmsQuestions.trial_id), " for children not passing unit 1: ", round(mean(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 0]),2),". SD = ", round(sd(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 0]),2)),"\n",
+    paste0("avg opportunity count on question ", unique(UASdata_learningCurve_trial_comparison$cmsQuestions.trial_id), " for children passing unit 1: ", round(mean(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 1]),2),". SD = ", round(sd(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 1]),2))
+    )
+  )
+
+```
+
+
+#####Unit 1 Question 3
+```{r, echo = F}
+UASdata_learningCurve_trial_comparison = UASdata_learningCurve_trial %>%
+  filter(cmsQuestions.trial_id == 3)
+  
+t.test(UASdata_learningCurve_trial_comparison$maxOpportunity_trial~UASdata_learningCurve_trial_comparison$passedUnit1) # where y is numeric and x is a binary factor
+
+message(
+  paste0(
+    paste0("avg opportunity count on question ", unique(UASdata_learningCurve_trial_comparison$cmsQuestions.trial_id), " for children not passing unit 1: ", round(mean(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 0]),2),". SD = ", round(sd(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 0]),2)),"\n",
+    paste0("avg opportunity count on question ", unique(UASdata_learningCurve_trial_comparison$cmsQuestions.trial_id), " for children passing unit 1: ", round(mean(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 1]),2),". SD = ", round(sd(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 1]),2))
+  )
+)
+
+```
+
+
+#####Unit 1 Question 5
+```{r, echo = F}
+UASdata_learningCurve_trial_comparison = UASdata_learningCurve_trial %>%
+  filter(cmsQuestions.trial_id == 5)
+  
+t.test(UASdata_learningCurve_trial_comparison$maxOpportunity_trial~UASdata_learningCurve_trial_comparison$passedUnit1) # where y is numeric and x is a binary factor
+
+message(
+  paste0(
+    paste0("avg opportunity count on question ", unique(UASdata_learningCurve_trial_comparison$cmsQuestions.trial_id), " for children not passing unit 1: ", round(mean(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 0]),2),". SD = ", round(sd(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 0]),2)),"\n",
+    paste0("avg opportunity count on question ", unique(UASdata_learningCurve_trial_comparison$cmsQuestions.trial_id), " for children passing unit 1: ", round(mean(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 1]),2),". SD = ", round(sd(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 1]),2))
+  )
+)
+
+```
+
+
+#####Unit 1 Question 7
+```{r, echo = F}
+UASdata_learningCurve_trial_comparison = UASdata_learningCurve_trial %>%
+  filter(cmsQuestions.trial_id == 7)
+  
+t.test(UASdata_learningCurve_trial_comparison$maxOpportunity_trial~UASdata_learningCurve_trial_comparison$passedUnit1) # where y is numeric and x is a binary factor
+
+message(
+  paste0(
+    paste0("avg opportunity count on question ", unique(UASdata_learningCurve_trial_comparison$cmsQuestions.trial_id), " for children not passing unit 1: ", round(mean(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 0]),2),". SD = ", round(sd(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 0]),2)),"\n",
+    paste0("avg opportunity count on question ", unique(UASdata_learningCurve_trial_comparison$cmsQuestions.trial_id), " for children passing unit 1: ", round(mean(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 1]),2),". SD = ", round(sd(UASdata_learningCurve_trial_comparison$maxOpportunity_trial[UASdata_learningCurve_trial_comparison$passedUnit1 == 1]),2))
+  )
+)
+```
+
+
+####Syllable performance for children who passed / did not pass Unit 1
 ###{.tabset}
-####plot
+####Unit 1 CCV
+```{r, echo = F}
+UASdata_learningCurve_syllable_comparison = UASdata_learningCurve_syllable %>%
+  filter(syllable_structure_token_a == "CCV")
+  
+t.test(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable~UASdata_learningCurve_syllable_comparison$passedUnit1) # where y is numeric and x is a binary factor
+
+message(
+  paste0(
+    paste0("avg opportunity count on syllable ", unique(UASdata_learningCurve_syllable_comparison$syllable_structure_token_a), " for children not passing unit 1: ", round(mean(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 0]),2),". SD = ", round(sd(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 0]),2)),"\n",
+    paste0("avg opportunity count on syllable ", unique(UASdata_learningCurve_syllable_comparison$syllable_structure_token_a), " for children passing unit 1: ", round(mean(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 1]),2),". SD = ", round(sd(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 1]),2))
+  )
+)
+
+```
+
+
+####Unit 1 CCVC
+```{r, echo = F}
+UASdata_learningCurve_syllable_comparison = UASdata_learningCurve_syllable %>%
+  filter(syllable_structure_token_a == "CCVC")
+  
+t.test(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable~UASdata_learningCurve_syllable_comparison$passedUnit1) # where y is numeric and x is a binary factor
+
+message(
+  paste0(
+    paste0("avg opportunity count on syllable ", unique(UASdata_learningCurve_syllable_comparison$syllable_structure_token_a), " for children not passing unit 1: ", round(mean(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 0]),2),". SD = ", round(sd(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 0]),2)),"\n",
+    paste0("avg opportunity count on syllable ", unique(UASdata_learningCurve_syllable_comparison$syllable_structure_token_a), " for children passing unit 1: ", round(mean(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 1]),2),". SD = ", round(sd(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 1]),2))
+  )
+)
+```
+####Unit 1 CV
+```{r, echo = F}
+UASdata_learningCurve_syllable_comparison = UASdata_learningCurve_syllable %>%
+  filter(syllable_structure_token_a == "CV")
+  
+t.test(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable~UASdata_learningCurve_syllable_comparison$passedUnit1) # where y is numeric and x is a binary factor
+
+message(
+  paste0(
+    paste0("avg opportunity count on syllable ", unique(UASdata_learningCurve_syllable_comparison$syllable_structure_token_a), " for children not passing unit 1: ", round(mean(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 0]),2),". SD = ", round(sd(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 0]),2)),"\n",
+    paste0("avg opportunity count on syllable ", unique(UASdata_learningCurve_syllable_comparison$syllable_structure_token_a), " for children passing unit 1: ", round(mean(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 1]),2),". SD = ", round(sd(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 1]),2))
+  )
+)
+```
+
+
+####Unit 1 CVC
+```{r, echo = F}
+UASdata_learningCurve_syllable_comparison = UASdata_learningCurve_syllable %>%
+  filter(syllable_structure_token_a == "CVC")
+  
+t.test(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable~UASdata_learningCurve_syllable_comparison$passedUnit1) # where y is numeric and x is a binary factor
+
+message(
+  paste0(
+    paste0("avg opportunity count on syllable ", unique(UASdata_learningCurve_syllable_comparison$syllable_structure_token_a), " for children not passing unit 1: ", round(mean(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 0]),2),". SD = ", round(sd(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 0]),2)),"\n",
+    paste0("avg opportunity count on syllable ", unique(UASdata_learningCurve_syllable_comparison$syllable_structure_token_a), " for children passing unit 1: ", round(mean(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 1]),2),". SD = ", round(sd(UASdata_learningCurve_syllable_comparison$maxOpportunity_syllable[UASdata_learningCurve_syllable_comparison$passedUnit1 == 1]),2))
+  )
+)
+```
+
+
+<!-- ###Regressions -->
+<!-- ```{r, echo = F} -->
+<!-- UASdata_learningCurve_trial_oneLinePerOpp_1 = UASdata_learningCurve_trial_oneLinePerOpp %>% -->
+<!--   filter(UAS.unit_id == 1) -->
+
+<!-- names(UASdata_learningCurve_trial_oneLinePerOpp_1) -->
+
+<!-- UASdata_learningCurve_trial_oneLinePerOpp_1$opportunity_trial = as.factor(UASdata_learningCurve_trial_oneLinePerOpp_1$opportunity_trial) -->
+<!-- UASdata_learningCurve_trial_oneLinePerOpp_1$cmsQuestions.trial_id = as.factor(UASdata_learningCurve_trial_oneLinePerOpp_1$cmsQuestions.trial_id) -->
+
+<!-- summary(lm(passedUnit1 ~ cmsQuestions.trial_id + errorRate_trial + userCountPerOpportunity_trial, data = UASdata_learningCurve_trial_oneLinePerOpp_1)) -->
+
+<!-- ``` -->
+
+###Learning Curves (interactive)
+####Data filtered for unit 1 content.
+###{.tabset}
+####by trials (plot)
 ```{r, echo = F}
 # #ggplotly(
 # UASdata_learningCurve_trial %>%
@@ -705,49 +906,219 @@ UASdata_learningCurve_trial_oneLinePerOpp = UASdata_learningCurve_trial %>%
 #   #                                         'read: ',,
 # #)
 
-suppressWarnings(
+suppressMessages(
 ggplotly(
 UASdata_learningCurve_trial_oneLinePerOpp %>%
   ungroup() %>%
+  #group_by(opportunity_trial, passedUnit1) %>%
   filter(UAS.unit_id == 1) %>%
          #userCountPerOpportunity >= 10) %>%
          #opportunity <= 50) %>%
   ggplot(
     aes(
-      x = opportunity,
-      y = errorRate,
+      x = opportunity_trial,
+      y = errorRate_trial,
       col = passedUnit1
+      #label = userCountPerOpportunity_trial
       )
     ) +
   ylim(0, 1) +
-  labs(x = "opportunity count", y = "avg error rate", col = "passed\nunit 1") +
-  stat_smooth(
-    method = "auto" 
-    #text = paste("n_users: ", unique(UASdata_learningCurve_trial_oneLinePerOpp$userCountPerOpportunity))
-) +
+  ggtitle("Error rate curves for each trial in Unit 1") +
+  labs(
+    x = "opportunity count", 
+    y = "avg error rate", 
+    col = "passed\nunit 1") +
+  stat_smooth() +
     #aes(text = paste0("children at opportunity count ",opportunity, ": ",n_distinct(treccId_phoneId[UASdata_learningCurve_trial$opportunity == opportunity])))
   facet_wrap(~ cmsQuestions.trial_id, ncol = 2)
   #ggplotly(tooltip = "text")
 )
 )
 
+# plot_ly(data = UASdata_learningCurve_trial_oneLinePerOpp, x = ~opportunity_trial, y = ~errorRate_trial,   mode = "lines",
+#   name = "loess smoother"),
+#   add_lines(y = ~fitted(loess(opportunity_trial ~ errorRate_trial))),
+#   text = ~paste("n_users: ", userCountPerOpportunity_trial)
+#                        #, '$<br>Cut:', cut)
+# 
+# trace1 <- list(
+#   x = ~opportunity_trial,
+#   y = ~errorRate_trial,
+#   mode = "markers",
+#   showlegend = FALSE,
+#   text = "",
+#   type = "scatter"
+# )
+# 
+# trace2 <- list(
+#   x = ~opportunity_trial,
+#   y = ~errorRate_trial,
+#   mode = "lines",
+#   name = "loess smoother",
+#   showlegend = TRUE,
+#   text = "",
+#   type = "scatter"
+# )
+# data <- list(trace1, trace2)
+# layout <- list(
+#   xaxis = list(title = "disp"),
+#   yaxis = list(title = "mpg")
+# )
+# p <- plot_ly()
+# p <- add_trace(p, x=trace1$x, y=trace1$y, mode=trace1$mode, showlegend=trace1$showlegend, text=trace1$text, type=trace1$type)
+# p <- add_trace(p, x=trace2$x, y=trace2$y, mode=trace2$mode, name=trace2$name, showlegend=trace2$showlegend, text=trace2$text, type=trace2$type)
+# p <- layout(p, xaxis=layout$xaxis, yaxis=layout$yaxis)
+# 
+# plot(p)
+# 
+# 
+# marker = list(size = 10,
+#                        color = 'rgba(255, 182, 193, .9)',
+#                        line = list(color = 'rgba(152, 0, 0, .8)',
+#                                    width = 2)))
+# 
+# #  ggplot(aes(x = as.numeric(nCalls), y = as.numeric(maxUnit), label = treccId_phoneId)) +
+# 
+
 ```
 
-####table
+
+#### by trials (survival curve)
 ```{r, echo = F}
-datatable(
-  UASdata_learningCurve_trial %>%
-  filter(UAS.unit_id == 1,
-         userCountPerOpportunity >= 10),
-  rownames = FALSE,
-  filter = "top",
-  extensions = 'FixedColumns',
-  options = list(
-  scrollX = TRUE,
-  scrollCollapse = TRUE
-))
+
+suppressMessages(
+ggplotly(
+UASdata_learningCurve_trial_oneLinePerOpp %>%
+  ungroup() %>%
+  #group_by(opportunity_trial, passedUnit1) %>%
+  filter(UAS.unit_id == 1) %>%
+         #userCountPerOpportunity >= 10) %>%
+         #opportunity <= 50) %>%
+  ggplot(
+    aes(
+      x = opportunity_trial,
+      y = userCountPerOpportunity_trial,
+      col = passedUnit1
+      #label = userCountPerOpportunity_trial
+      )
+    ) +
+  #ylim(0, 1) +
+  ggtitle("Survival curves for each trial in Unit 1") +
+  labs(
+    x = "opportunity count", 
+    y = "user count", 
+    col = "passed\nunit 1") +
+  stat_smooth() +
+    #aes(text = paste0("children at opportunity count ",opportunity, ": ",n_distinct(treccId_phoneId[UASdata_learningCurve_trial$opportunity == opportunity])))
+  facet_wrap(~ cmsQuestions.trial_id, ncol = 2)
+  #ggplotly(tooltip = "text")
+)
+)
+
 
 ```
+
+####by syllables (plot)
+```{r, echo = F}
+# #ggplotly(
+# UASdata_learningCurve_trial %>%
+#   filter(UAS.unit_id == 1,
+#          userCountPerOpportunity >= 10) %>%
+#          #opportunity <= 50) %>%
+#   ggplot(aes(x = opportunity,
+#              y = errorRate,
+#              col = passedUnit1
+#              )) +
+#   ylim(0, 1) +
+#   labs(x = "opportunity count", y = "avg error rate") +
+#   facet_wrap(~ cmsQuestions.trial_id, ncol = 2) +
+#   #geom_smooth()
+#   geom_smooth(
+#     #aes(text = paste0('n_students: ', userCountPerOpportunity))
+#     )
+#   #                                         '<br>',
+#   #                                         'read: ',,
+# #)
+
+suppressMessages(
+ggplotly(
+UASdata_learningCurve_syllable_oneLinePerOpp %>%
+  ungroup() %>%
+  filter(UAS.unit_id == 1) %>%
+         #userCountPerOpportunity >= 10) %>%
+         #opportunity <= 50) %>%
+  ggplot(
+    aes(
+      x = opportunity_syllable,
+      y = errorRate_syllable,
+      col = passedUnit1
+      )
+    ) +
+  ylim(0, 1) +
+  ggtitle("Error rate curves for each syllable structure in Unit 1") +
+  labs(
+    x = "opportunity count", 
+    y = "avg error rate", 
+    col = "passed\nunit 1"
+    ) +
+  stat_smooth() +
+    #aes(text = paste0("children at opportunity count ",opportunity, ": ",n_distinct(treccId_phoneId[UASdata_learningCurve_trial$opportunity == opportunity])))
+  facet_wrap(~ syllable_structure_token_a, ncol = 2)
+  #ggplotly(tooltip = "text")
+)
+)
+
+```
+
+#### by syllables (survival curve)
+```{r, echo = F}
+suppressMessages(
+ggplotly(
+UASdata_learningCurve_syllable_oneLinePerOpp %>%
+  ungroup() %>%
+  #group_by(opportunity_trial, passedUnit1) %>%
+  filter(UAS.unit_id == 1) %>%
+         #userCountPerOpportunity >= 10) %>%
+         #opportunity <= 50) %>%
+  ggplot(
+    aes(
+      x = opportunity_syllable,
+      y = userCountPerOpportunity_syllable,
+      col = passedUnit1
+      #label = userCountPerOpportunity_trial
+      )
+    ) +
+  #ylim(0, 1) +
+  ggtitle("Survival curves for each syllable in Unit 1") +
+  labs(
+    x = "opportunity count", 
+    y = "user count", 
+    col = "passed\nunit 1") +
+  stat_smooth() +
+    #aes(text = paste0("children at opportunity count ",opportunity, ": ",n_distinct(treccId_phoneId[UASdata_learningCurve_trial$opportunity == opportunity])))
+  facet_wrap(~ syllable_structure_token_a, ncol = 2)
+  #ggplotly(tooltip = "text")
+)
+)
+
+
+```
+
+<!-- ####table -->
+<!-- ```{r, echo = F} -->
+<!-- datatable( -->
+<!--   UASdata_learningCurve_trial %>% -->
+<!--   filter(UAS.unit_id == 1, -->
+<!--          userCountPerOpportunity >= 10), -->
+<!--   rownames = FALSE, -->
+<!--   filter = "top", -->
+<!--   extensions = 'FixedColumns', -->
+<!--   options = list( -->
+<!--   scrollX = TRUE, -->
+<!--   scrollCollapse = TRUE -->
+<!-- )) -->
+
+<!-- ``` -->
 
 
 

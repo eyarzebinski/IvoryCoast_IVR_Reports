@@ -311,7 +311,7 @@ ggplot(Qcount_unit_questionType_all_graph, aes(x=totalQuestions)) +
 ```
 
 
-###Current child progress in unit
+###Current child progress in unit (interactive)
 ####The Trial Mastery tab shows the current unit for each child (eg "1" is unit 1). The color of the dot signifies the trials that a student has successfully mastered within a given unit. 
 ####The Days Since Last Call tab shows the current unit for each child (eg "1" is unit 1). The color of the dot signifies the quartile range of their most recent call. The quartile range is defined below the graph.
 
@@ -319,17 +319,18 @@ ggplot(Qcount_unit_questionType_all_graph, aes(x=totalQuestions)) +
 #####Trial Mastery
 ```{r, echo = F}
 #ggplot where color = allTrialId
-#ggplotly(
-  ggplot(data=Qcount_unit_questionType_current,aes(x=as.numeric(total_questionsAttempted),y=as.numeric(avg_mastery))) + 
+ggplotly(
+  ggplot(data=Qcount_unit_questionType_current,aes(x=total_questionsAttempted,y=avg_mastery, label = treccId_phoneId)) + 
   #geom_point(aes(alpha = -n_daysSinceLastLesson)) +
   geom_jitter(aes(col = n_trialsComplete), width = 1) +
   #geom_point() +
-  labs(x = "Questions Attempted", y = "Mastery Score", col = "Trials \nComplete") +
-  facet_wrap(~ UAS.unit_id, ncol = 4) +
-  ggtitle("Child users: mastery & attempted questions - number of complete trials") +
+  ylim(0, 1) +
+  labs(x = "Questions Attempted", y = "Mastery Score", col = "Trials\nComplete") +
+  facet_wrap(~ UAS.unit_id, ncol = 5) +
+  ggtitle("Mastery & attempted questions - number of complete trials") +
    #guides(fill=guide_legend(title="Trials Complete")) +
   scale_color_manual(values=c("grey56","#53B400","tan1","#C77CFF","#F8766D","#00BFC4"))
-#)
+)
 
 ```
 
@@ -438,6 +439,7 @@ names(shapes) <- unique(interactionsData$userRole)
 ###{.tabset}
 ####Affery_2
 ```{r, echo = F, fig.height = 4.2, fig.width = 7}
+##old version of graph
 # suppressMessages(print(
 #   Qcount_day %>%
 #     filter(village == "Affery") %>%
@@ -454,11 +456,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Affery_2")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -493,11 +499,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Affery_Plateau 2")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -531,11 +541,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Affery_Plateau 4")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -569,11 +583,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Affery_Plateau 5")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -607,11 +625,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Affery_unknown")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -637,6 +659,26 @@ message(
   paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
   )
 
+```
+
+####NOT CALLED
+```{r, echo = F}
+
+notCalled = childUsers %>%
+  filter(village == villageName,
+        !studyPhoneId %in% interactionsCount_day$studyPhoneId[interactionsCount_day$userRole == "child"])
+
+datatable(
+  notCalled, 
+  extensions = 'FixedColumns',
+  fillContainer = FALSE,
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    scrollX = TRUE,
+    pageLength = 10,
+    scrollCollapse = TRUE
+))
 
 ```
 
@@ -650,11 +692,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Ahouabo_1")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -688,11 +734,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Ahouabo_2")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -720,6 +770,27 @@ message(
 
 ```
 
+####NOT CALLED
+```{r, echo = F}
+
+notCalled = childUsers %>%
+  filter(village == villageName,
+        !studyPhoneId %in% interactionsCount_day$studyPhoneId[interactionsCount_day$userRole == "child"])
+
+datatable(
+  notCalled, 
+  extensions = 'FixedColumns',
+  fillContainer = FALSE,
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    scrollX = TRUE,
+    pageLength = 10,
+    scrollCollapse = TRUE
+))
+
+```
+
 ###Ananguie
 ###{.tabset}
 ####Ananguie_2
@@ -728,11 +799,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Ananguie_2")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -757,6 +832,27 @@ message(
   paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
   paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
   )
+
+```
+
+####NOT CALLED
+```{r, echo = F}
+
+notCalled = childUsers %>%
+  filter(village == villageName,
+        !studyPhoneId %in% interactionsCount_day$studyPhoneId[interactionsCount_day$userRole == "child"])
+
+datatable(
+  notCalled, 
+  extensions = 'FixedColumns',
+  fillContainer = FALSE,
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    scrollX = TRUE,
+    pageLength = 10,
+    scrollCollapse = TRUE
+))
 
 ```
 
@@ -772,7 +868,10 @@ schoolName = unique(interactionsCount_day_FILTER$village_school)
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -806,11 +905,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Becouefin_3")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -838,6 +941,27 @@ message(
 
 ```
 
+####NOT CALLED
+```{r, echo = F}
+
+notCalled = childUsers %>%
+  filter(village == villageName,
+        !studyPhoneId %in% interactionsCount_day$studyPhoneId[interactionsCount_day$userRole == "child"])
+
+datatable(
+  notCalled, 
+  extensions = 'FixedColumns',
+  fillContainer = FALSE,
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    scrollX = TRUE,
+    pageLength = 10,
+    scrollCollapse = TRUE
+))
+
+```
+
 ###Bouape
 ###{.tabset}
 ####Bouape_2
@@ -846,11 +970,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Bouape_2")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -884,11 +1012,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Bouape_3")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -913,6 +1045,27 @@ message(
   paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
   paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
   )
+
+```
+
+####NOT CALLED
+```{r, echo = F}
+
+notCalled = childUsers %>%
+  filter(village == villageName,
+        !studyPhoneId %in% interactionsCount_day$studyPhoneId[interactionsCount_day$userRole == "child"])
+
+datatable(
+  notCalled, 
+  extensions = 'FixedColumns',
+  fillContainer = FALSE,
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    scrollX = TRUE,
+    pageLength = 10,
+    scrollCollapse = TRUE
+))
 
 ```
 
@@ -924,11 +1077,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Boudepe_1")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -956,6 +1113,27 @@ message(
 
 ```
 
+####NOT CALLED
+```{r, echo = F}
+
+notCalled = childUsers %>%
+  filter(village == villageName,
+        !studyPhoneId %in% interactionsCount_day$studyPhoneId[interactionsCount_day$userRole == "child"])
+
+datatable(
+  notCalled, 
+  extensions = 'FixedColumns',
+  fillContainer = FALSE,
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    scrollX = TRUE,
+    pageLength = 10,
+    scrollCollapse = TRUE
+))
+
+```
+
 ###Diape
 ###{.tabset}
 ####Diape_1
@@ -964,11 +1142,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Diape_1")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -1003,11 +1185,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Diape_4")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -1035,6 +1221,27 @@ message(
 
 ```
 
+####NOT CALLED
+```{r, echo = F}
+
+notCalled = childUsers %>%
+  filter(village == villageName,
+        !studyPhoneId %in% interactionsCount_day$studyPhoneId[interactionsCount_day$userRole == "child"])
+
+datatable(
+  notCalled, 
+  extensions = 'FixedColumns',
+  fillContainer = FALSE,
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    scrollX = TRUE,
+    pageLength = 10,
+    scrollCollapse = TRUE
+))
+
+```
+
 
 ###Moape
 ###{.tabset}
@@ -1044,11 +1251,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Moape_2")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -1083,11 +1294,15 @@ interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Moape_4")
 
 schoolName = unique(interactionsCount_day_FILTER$village_school)
+villageName = unique(interactionsCount_day_FILTER$village)
 
 interactionsCount_day_FILTER %>%
     #filter(village_school == "Affery_2") %>%
     ggplot(aes(x = date,
-               y = reorder(studyPhoneId, date, min),
+               ##y call below to sort y axis by order of first call
+               #y = reorder(studyPhoneId, date, min),
+               #y call below to sort y axis by order of phone id
+               y = as.factor(as.numeric(studyPhoneId)),
                group = studyPhoneId, 
                shape = userRole,
                fill = questionsAttempted
@@ -1112,6 +1327,27 @@ message(
   paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
   paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
   )
+
+```
+
+####NOT CALLED
+```{r, echo = F}
+
+notCalled = childUsers %>%
+  filter(village == villageName,
+        !studyPhoneId %in% interactionsCount_day$studyPhoneId[interactionsCount_day$userRole == "child"])
+
+datatable(
+  notCalled, 
+  extensions = 'FixedColumns',
+  fillContainer = FALSE,
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    scrollX = TRUE,
+    pageLength = 10,
+    scrollCollapse = TRUE
+))
 
 ```
 
@@ -1463,7 +1699,7 @@ ggplot(usersPerDay_lessons, aes(date,as.integer(uniqueUsers), fill = factor(user
   geom_col() + 
   labs(y = "uniqueUsers") +
   scale_fill_manual(values=c("gold3","grey56","dodgerblue")) +
-  guides(fill=guide_legend(title="Users Attempting Questions")) +
+  guides(fill=guide_legend(title="Users\nAttempting\nQuestions")) +
   ggtitle("Unique Users Attempting Questions per Day")
 
 
@@ -1480,7 +1716,7 @@ ggplot(usersPerDay_calling, aes(date,as.integer(uniqueUsers), fill = factor(user
   geom_col() + 
   labs(y = "uniqueUsers") +
   scale_fill_manual(values=c("gold3","grey56","dodgerblue")) +
-  guides(fill=guide_legend(title="Users Initiating a Call")) +
+  guides(fill=guide_legend(title="Users\nInitiating\na Call")) +
   ggtitle("Unique Users Starting Calls per Day")
 
 
@@ -1755,6 +1991,27 @@ callsAndQuestions %>%
   labs(x = "nCalls", y = "nQuestions")
   #facet_wrap(~ questionAndUnit_concat, ncol = 5) +
   #stat_smooth()
+
+```
+
+###Calls by Unit Number (interactive)
+####To reveal who is wheel spinning in Unit 1 despite many calls. Note: calls represented in this plot are those with question attempts, not calls in which questions were not attempted.
+```{r, echo = F}
+
+callsByUnit = UASdata %>%
+  filter(userRole == "child") %>%
+  group_by(treccId_phoneId) %>%
+  summarize(nCalls = n_distinct(cdr.uniqueId),
+            maxUnit = max(UAS.unit_id))
+
+ggplotly(
+callsByUnit %>%
+  ggplot(aes(x = as.numeric(nCalls), y = as.numeric(maxUnit), label = treccId_phoneId)) +
+  geom_jitter(alpha = .2, width = .3) +
+#  geom_point() +
+  labs(x = "nCalls", y = "max Unit")
+  #facet_wrap(~ questionAndUnit_concat, ncol = 5) +
+)
 
 ```
 

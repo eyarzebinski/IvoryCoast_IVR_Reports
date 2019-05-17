@@ -1,8 +1,0 @@
-"0","#users per day"
-"0","#usersPerDay = CIVdata_filter %>%"
-"0","usersPerDay = CIVdata_filter %>%"
-"0","  group_by(date) %>%"
-"0","  summarize(uniqueUsers = n_distinct(studentStudyId))"
-"0","#datatable(Qcount_usersPerDay)"
-"0","ggplot(usersPerDay, aes (date,uniqueUsers))+"
-"0","  geom_col()"

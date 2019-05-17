@@ -1,8 +1,0 @@
-"0","overallUnit = Qcount_unit %>%"
-"0","  group_by(studentStudyId) %>%"
-"0","  summarize(currentUnit = max(UAS.unit_id))"
-"0","  "
-"0","overallUnit = overallUnit %>%"
-"0","  group_by(currentUnit) %>%"
-"0","  summarize(nUsers = n_distinct(studentStudyId))"
-"0","datatable(overallUnit)"

@@ -20,7 +20,7 @@
 
 ####CHANGE THIS EACH TIME TO POINT TO THE RIGHT FILES####
 #set file date
-dataDate = "2019-05-17"
+dataDate = "2019-05-22"
 
 #bad ids are testing accounts or duplicates of valid numbers confirmed not to be used.
 badIds = c(1, 2, 3, 44, 45, 46, 51, 53, 54, 56, 57, 64, 66, 68, 69, 74, 105, 147, 148, 149, 150, 192, 193, 194, 196, 238, 239, 240, 988)
@@ -87,7 +87,7 @@ redcapID = redcapID %>%
          portable_id != 166,
          portable_id != 196
   ) %>%
-  rename(studyPhoneId = portable_id,
+  dplyr::rename(studyPhoneId = portable_id,
          redcapId = record_id)
 
 ###################################

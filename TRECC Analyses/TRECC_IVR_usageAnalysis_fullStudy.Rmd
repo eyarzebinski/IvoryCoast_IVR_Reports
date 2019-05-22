@@ -26,7 +26,7 @@ rm(list=ls())
 gc(verbose=TRUE)
 
 #run cleaning script
-suppressWarnings(suppressMessages(source("TRECC_dataPrep_fullStudy_HD.R")))
+suppressWarnings(suppressMessages(source("TRECC_IVR_dataPrep_fullStudy_HD.R")))
 
 #duplicateOutput = ifelse(nrow(dupes_UAS) == 0 & nrow(dupes_intLesson) == 0, "", paste("There are duplicates rows in the data; please run #TRECC_dataPrep_fullStudy_HD.R outside of this chunk and check `dupes_intLesson` and `dupes_UAS`"))
 #message(duplicateOutput)
@@ -320,38 +320,54 @@ ggplot(Qcount_unit_questionType_all_graph, aes(x=totalQuestions)) +
 ```{r, echo = F}
 #ggplot where color = allTrialId
 ggplotly(
-  ggplot(data=Qcount_unit_questionType_current,aes(x=total_questionsAttempted,y=avg_mastery, label = treccId_phoneId)) + 
+  ggplot(data=Qcount_unit_questionType_current,
+         aes(x=total_questionsAttempted,
+             y=avg_mastery, 
+             label = treccId_phoneId, 
+             label2 = n_daysSinceLastLesson)
+         ) + 
   #geom_point(aes(alpha = -n_daysSinceLastLesson)) +
-  geom_jitter(aes(col = n_trialsComplete), width = 1) +
+  geom_jitter(
+    aes(col = n_trialsComplete), 
+    width = 1) +
   #geom_point() +
   ylim(0, 1) +
-  labs(x = "Questions Attempted", y = "Mastery Score", col = "Trials\nComplete") +
-  facet_wrap(~ UAS.unit_id, ncol = 5) +
+  labs(x = "Questions Attempted", 
+       y = "Mastery Score", 
+       col = "Trials\nComplete") +
+  facet_wrap(~ UAS.unit_id, 
+             ncol = 5) +
   ggtitle("Mastery & attempted questions - number of complete trials") +
    #guides(fill=guide_legend(title="Trials Complete")) +
-  scale_color_manual(values=c("grey56","#53B400","tan1","#C77CFF","#F8766D","#00BFC4"))
+  scale_color_manual(values=c("grey56",
+                              "#53B400",
+                              "tan1",
+                              "#C77CFF",
+                              "#F8766D",
+                              "#00BFC4")
+                     )
 )
 
 ```
 
-#####Most Recent Study Week of Last Call
-```{r, echo = F}
+<!-- #####Most Recent Study Week of Last Call -->
+<!-- ```{r, echo = F} -->
 
-ggplot(data=Qcount_unit_questionType_current,aes(x=total_questionsAttempted,y=avg_mastery)) + 
-  #geom_jitter(aes(col = quart_daysSinceLastLesson), width = 1) +
-  geom_jitter(aes(col = recentWeek), width = 1) +
-  labs(x = "questionsAttempted", y = "masteryScore") +
-  facet_wrap(~ UAS.unit_id, ncol = 4) +
-  ggtitle("Mastery & attempted questions: most recent study week attempting questions")
-  ##scale_color_continuous(low = "grey90", high = "grey0")
-  #scale_color_manual(values=c("slateblue1","tan1","tomato", "limegreen"))
+<!-- ggplot(data=Qcount_unit_questionType_current,aes(x=total_questionsAttempted,y=avg_mastery)) +  -->
+<!--   #geom_jitter(aes(col = quart_daysSinceLastLesson), width = 1) + -->
+<!--   geom_jitter(aes(col = recentWeek), width = 1) + -->
+<!--   labs(x = "questionsAttempted", y = "masteryScore") + -->
+<!--   facet_wrap(~ UAS.unit_id, ncol = 4) + -->
+<!--   ggtitle("Mastery & attempted questions: most recent study week attempting questions") -->
+<!--   ##scale_color_continuous(low = "grey90", high = "grey0") -->
+<!--   #scale_color_manual(values=c("slateblue1","tan1","tomato", "limegreen")) -->
 
-# message("n days in Q1 is between: ", min(Qcount_unit_questionType_current$min_Q1), " and ", max(Qcount_unit_questionType_current$max_Q1), " days.")
-# message("n days in Q2 is between: ", min(Qcount_unit_questionType_current$min_Q2), " and ", max(Qcount_unit_questionType_current$max_Q2), " days.")
-# message("n days in Q3 is between: ", min(Qcount_unit_questionType_current$min_Q3), " and ", max(Qcount_unit_questionType_current$max_Q3), " days.")
-# message("n days in Q4 is between: ", min(Qcount_unit_questionType_current$min_Q4), " and ", max(Qcount_unit_questionType_current$max_Q4), " days.")
+<!-- # message("n days in Q1 is between: ", min(Qcount_unit_questionType_current$min_Q1), " and ", max(Qcount_unit_questionType_current$max_Q1), " days.") -->
+<!-- # message("n days in Q2 is between: ", min(Qcount_unit_questionType_current$min_Q2), " and ", max(Qcount_unit_questionType_current$max_Q2), " days.") -->
+<!-- # message("n days in Q3 is between: ", min(Qcount_unit_questionType_current$min_Q3), " and ", max(Qcount_unit_questionType_current$max_Q3), " days.") -->
+<!-- # message("n days in Q4 is between: ", min(Qcount_unit_questionType_current$min_Q4), " and ", max(Qcount_unit_questionType_current$max_Q4), " days.") -->
 
-```
+<!-- ``` -->
 
 
 ###User Call Pattern, by village and school
@@ -370,10 +386,40 @@ ggplot(data=Qcount_unit_questionType_current,aes(x=total_questionsAttempted,y=av
 ```
 
 ```{r user usage scatterplot, echo = F}
+interactionsData_flowMap = read.csv(file = "interactionsData_flowMap_V02.csv", stringsAsFactors = F)
+
+#use this to rename the column on a windows machine
+#colnames(interactionsData_flowMap)[1] <- "interactionDataValue_numberPressed"
+colnames(interactionsData_flowMap)[1] <- "interactions.action"
+
+interactionsData_flow = interactionsData %>%
+  ungroup() %>%
+  filter(interactionData.data_key != "childId" & interactionData.data_key != "UniqueID") %>%
+  mutate(interactions.value = NULL,
+         interactions.data = NULL,
+         interactions.date_created = NULL,
+         interactions.id = NULL,
+         interactions.persistent = NULL,
+         interactions.pending = NULL,
+         numberPressed = ifelse(cdr.uniqueId == lead(cdr.uniqueId) & lead(interactionData.data_key) == "query", lead(interactionData.value), NA),
+         interactionDataValue_numberPressed = paste0(interactionData.value, numberPressed)) %>%
+  #left_join(interactionsData_flowMap, by = c("interactionDataValue_numberPressed")) %>%
+  left_join(interactionsData_flowMap, by = c("interactions.action")) %>%
+  group_by(date, cdr.uniqueId) %>%
+  #stop after this row to get the raw data before summary
+  fill(flow, .direction = "down") %>%
+  ungroup() %>%
+  mutate(flowFix = ifelse(interactions.action == "child_hand_off", "child", flow),
+         flow = NULL) %>%
+  rename(flow = flowFix)
+
+
+
 
 Qcount_day = UASdata %>%
   filter(userRole == "child") %>%
   group_by(treccId_phoneId, 
+           userType,
            userRole, 
            village,
            school,
@@ -387,6 +433,7 @@ Qcount_day = UASdata %>%
   ungroup() %>%
   mutate(UAS.unit_id = as.factor(UAS.unit_id)) %>%
   group_by(treccId_phoneId, 
+           userType,
            userRole, 
            village, 
            school,
@@ -397,10 +444,10 @@ Qcount_day = UASdata %>%
   ungroup()
 
 suppressWarnings({  
-interactionsCount_day = interactionsData %>%
+interactionsCount_day = interactionsData_flow %>%
   mutate(studyPhoneId = as.factor(studyPhoneId),
          CONCAT_treccIdStudyId_studyPhoneId_userRole_village_date = paste0(treccId_phoneId, studyPhoneId, userRole, village, date)) %>%
-  group_by(treccId_phoneId, studyPhoneId, userRole, village, school, village_school, date, CONCAT_treccIdStudyId_studyPhoneId_userRole_village_date) %>%
+  group_by(treccId_phoneId, studyPhoneId, userRole, village, school, village_school, date, flow, CONCAT_treccIdStudyId_studyPhoneId_userRole_village_date) %>%
   summarize(n = n()) %>%
   mutate(n = NULL,
          callMade = 1) %>%
@@ -420,17 +467,39 @@ UASCount_day = UASdata %>%
 
 suppressWarnings({  
 interactionsCount_day = interactionsCount_day %>%
-  left_join(UASCount_day, by = c("CONCAT_treccIdStudyId_studyPhoneId_userRole_village_date")) 
+  left_join(UASCount_day, by = c("CONCAT_treccIdStudyId_studyPhoneId_userRole_village_date"))
 })
 
 interactionsCount_day[c("questionsAttempted")][is.na(interactionsCount_day[c("questionsAttempted")])] <- "0"
 interactionsCount_day$questionsAttempted = as.factor(interactionsCount_day$questionsAttempted)
 
+# interactionsCount_day = interactionsCount_day %>%
+#   filter(village != "unknown") %>%
+#   mutate(interactionType = ifelse(userRole == "adult" & flow == "adult", "adult in adult flow",
+#                                   ifelse(userRole == "child" & flow == "child" & questionsAttempted == 1, "child in child flow,\nattempted questions",
+#                                          ifelse(userRole == "child" & flow == "child" & questionsAttempted == 0, "child in child flow,\nno attempted questions",
+#                                                 ifelse(userRole == "child" & flow == "adult", "child in adult flow", 
+#                                                        ifelse(userRole == "adult" & flow == "child" & questionsAttempted == 1, "adult in child flow,\nattempted questions",
+#                                                               ifelse(userRole == "adult" & flow == "child" & questionsAttempted == 0, "adult in child flow,\nno attempted questions", "CHECK THIS")))))))
+
+interactionsCount_day = interactionsCount_day %>%
+  filter(village != "unknown") %>%
+  mutate(interactionType = ifelse(userRole == "adult" & flow == "adult", "in adult flow",
+                                  ifelse(userRole == "child" & flow == "child" & questionsAttempted == 1, "in child flow,\nattempted questions",
+                                         ifelse(userRole == "child" & flow == "child" & questionsAttempted == 0, "in child flow,\nno attempted questions",
+                                                ifelse(userRole == "child" & flow == "adult", "in adult flow", 
+                                                       ifelse(userRole == "adult" & flow == "child" & questionsAttempted == 1, "in child flow,\nattempted questions",
+                                                              ifelse(userRole == "adult" & flow == "child" & questionsAttempted == 0, "in child flow,\nno attempted questions", "CHECK THIS")))))))
+
 #set absolute order for graph shapes, whether adults and children appear in a given school.
 #24 is empty triangle
 #21 is empty circle
 shapes <- c(21, 24, 21, 24)
-names(shapes) <- unique(interactionsData$userRole)
+names(shapes) <- unique(interactionsCount_day$userRole)
+
+#colors <- c("darkgoldenrod2","forestgreen", "orchid1")
+colors <- c("royalblue","red1", "gold")
+names(colors) <- unique(interactionsCount_day$interactionType)
 
 
 ```
@@ -438,7 +507,7 @@ names(shapes) <- unique(interactionsData$userRole)
 ###Affery
 ###{.tabset}
 ####Affery_2
-```{r, echo = F, fig.height = 4.2, fig.width = 7}
+```{r, echo = F, fig.height = 4.2, fig.width = 8}
 ##old version of graph
 # suppressMessages(print(
 #   Qcount_day %>%
@@ -464,21 +533,22 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
 
 message(
@@ -493,7 +563,7 @@ message(
 ```
 
 ####Affery_Plateau 2
-```{r, echo = F, fig.height = 4.2, fig.width = 7}
+```{r, echo = F, fig.height = 4.2, fig.width = 8}
 
 interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Affery_Plateau 2")
@@ -507,21 +577,22 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
 
 message(
@@ -549,21 +620,22 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
 
 message(
@@ -578,7 +650,7 @@ message(
 ```
 
 ####Affery_Plateau 5
-```{r, echo = F, fig.height = 4.2, fig.width = 7}
+```{r, echo = F, fig.height = 4.2, fig.width = 8}
 interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Affery_Plateau 5")
 
@@ -591,22 +663,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -633,21 +707,22 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
 
 message(
@@ -700,22 +775,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -742,22 +819,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -794,7 +873,7 @@ datatable(
 ###Ananguie
 ###{.tabset}
 ####Ananguie_2
-```{r, echo = F, fig.height = 8, fig.width = 9}
+```{r, echo = F, fig.height = 9, fig.width = 9}
 interactionsCount_day_FILTER = interactionsCount_day %>%
   filter(village_school == "Ananguie_2")
 
@@ -807,22 +886,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -871,22 +952,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -913,22 +996,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -978,22 +1063,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -1020,22 +1107,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -1085,22 +1174,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -1150,22 +1241,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -1193,22 +1286,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -1259,22 +1354,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -1302,22 +1399,24 @@ interactionsCount_day_FILTER %>%
                ##y call below to sort y axis by order of first call
                #y = reorder(studyPhoneId, date, min),
                #y call below to sort y axis by order of phone id
-               y = as.factor(as.numeric(studyPhoneId)),
+               y = studyPhoneId,
                group = studyPhoneId, 
                shape = userRole,
-               fill = questionsAttempted
+               fill = interactionType
                )) +
     geom_path() +
     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
     geom_jitter(height = 0.25, width = 0.25) +
     #scale_shape_manual(values=c(24, 21))+
     scale_shape_manual(values=shapes) +
+    scale_fill_manual(values=colors) +
     scale_x_date(date_breaks = "2 weeks", 
                  date_labels = "%b %d",
                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
     #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Attempted \nQuestion \nOn Call") +
+    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
     guides(fill=guide_legend(override.aes=list(shape=21)))
+
 
 message(
   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
@@ -1428,8 +1527,10 @@ usersPerWeek_usage = rbind(usersPerWeekAttemptingQuestions, usersPerWeekCallingS
 rm(usersPerWeekCallingSystem)
 rm(usersPerWeekAttemptingQuestions)
 
-message("Average all unique users calling system per week: ",round(mean(usersPerWeek_usage$count[usersPerWeek_usage$action == "callingSystem"]),2),"; sd: ",round(sd(usersPerWeek_usage$count[usersPerWeek_usage$action == "callingSystem"]),2))
-message("Average all unique users attempting questions per week: ",round(mean(usersPerWeek_usage$count[usersPerWeek_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(usersPerWeek_usage$count[usersPerWeek_usage$action == "attemptingQuestions"]),2))
+message(
+  paste0("Average all unique users calling system per week: ",round(mean(usersPerWeek_usage$count[usersPerWeek_usage$action == "callingSystem"]),2),"; sd: ",round(sd(usersPerWeek_usage$count[usersPerWeek_usage$action == "callingSystem"]),2)),"\n",
+  paste0("Average all unique users attempting questions per week: ",round(mean(usersPerWeek_usage$count[usersPerWeek_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(usersPerWeek_usage$count[usersPerWeek_usage$action == "attemptingQuestions"]),2))
+)
 
 ggplot(usersPerWeek_usage, aes(as.numeric(weekNumber_study),as.numeric(count), fill = action)) +
   geom_bar(stat = "identity", position = "dodge") + 
@@ -1470,8 +1571,10 @@ usersPerWeek_usage = rbind(usersPerWeekAttemptingQuestions, usersPerWeekCallingS
 rm(usersPerWeekCallingSystem)
 rm(usersPerWeekAttemptingQuestions)
 
-message("Average unique child users calling system per week: ",round(mean(usersPerWeek_usage$count[usersPerWeek_usage$action == "callingSystem"]),2),"; sd: ",round(sd(usersPerWeek_usage$count[usersPerWeek_usage$action == "callingSystem"]),2))
-message("Average unique child users attempting questions per week: ",round(mean(usersPerWeek_usage$count[usersPerWeek_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(usersPerWeek_usage$count[usersPerWeek_usage$action == "attemptingQuestions"]),2))
+message(
+  paste0("Average unique child users calling system per week: ",round(mean(usersPerWeek_usage$count[usersPerWeek_usage$action == "callingSystem"]),2),"; sd: ",round(sd(usersPerWeek_usage$count[usersPerWeek_usage$action == "callingSystem"]),2)),"\n",
+  paste0("Average unique child users attempting questions per week: ",round(mean(usersPerWeek_usage$count[usersPerWeek_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(usersPerWeek_usage$count[usersPerWeek_usage$action == "attemptingQuestions"]),2))
+)
 
 ggplot(usersPerWeek_usage, aes(as.numeric(weekNumber_study),as.numeric(count), fill = action)) +
   geom_bar(stat = "identity", position = "dodge") + 
@@ -1509,9 +1612,10 @@ usersPerDay_usage = rbind(usersPerDayAttemptingQuestions, usersPerDayCallingSyst
 rm(usersPerDayAttemptingQuestions)
 rm(usersPerDayCallingSystem)
 
-message("Average all unique users calling system per day: ",round(mean(usersPerDay_usage$count[usersPerDay_usage$action == "callingSystem"]),2),"; sd: ",round(sd(usersPerDay_usage$count[usersPerDay_usage$action == "callingSystem"]),2))
-
-message("Average all unique users attempting questions per day: ",round(mean(usersPerDay_usage$count[usersPerDay_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(usersPerDay_usage$count[usersPerDay_usage$action == "attemptingQuestions"]),2))
+message(
+  paste0("Average all unique users calling system per day: ",round(mean(usersPerDay_usage$count[usersPerDay_usage$action == "callingSystem"]),2),"; sd: ",round(sd(usersPerDay_usage$count[usersPerDay_usage$action == "callingSystem"]),2)),"\n",
+  paste0("Average all unique users attempting questions per day: ",round(mean(usersPerDay_usage$count[usersPerDay_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(usersPerDay_usage$count[usersPerDay_usage$action == "attemptingQuestions"]),2))
+)
 
 ggplot(usersPerDay_usage, aes(date,as.numeric(count), fill = action)) +
   geom_bar(stat = "identity", position = "dodge") + 
@@ -1549,9 +1653,10 @@ usersPerDay_usage = rbind(usersPerDayAttemptingQuestions, usersPerDayCallingSyst
 rm(usersPerDayAttemptingQuestions)
 rm(usersPerDayCallingSystem)
 
-message("Average unique child users calling system per day: ",round(mean(usersPerDay_usage$count[usersPerDay_usage$action == "callingSystem"]),2),"; sd: ",round(sd(usersPerDay_usage$count[usersPerDay_usage$action == "callingSystem"]),2))
-
-message("Average unique shild users attempting questions per day: ",round(mean(usersPerDay_usage$count[usersPerDay_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(usersPerDay_usage$count[usersPerDay_usage$action == "attemptingQuestions"]),2))
+message(
+  paste0("Average unique child users calling system per day: ",round(mean(usersPerDay_usage$count[usersPerDay_usage$action == "callingSystem"]),2),"; sd: ",round(sd(usersPerDay_usage$count[usersPerDay_usage$action == "callingSystem"]),2)),"\n",
+  paste0("Average unique shild users attempting questions per day: ",round(mean(usersPerDay_usage$count[usersPerDay_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(usersPerDay_usage$count[usersPerDay_usage$action == "attemptingQuestions"]),2))
+)
 
 ggplot(usersPerDay_usage, aes(date,as.numeric(count), fill = action)) +
   geom_bar(stat = "identity", position = "dodge") + 
@@ -1588,9 +1693,10 @@ weeksPerUser_usage = rbind(weeksPerUsersAttemptingQuestions, weeksPerUsersCallin
 rm(weeksPerUsersAttemptingQuestions)
 rm(weeksPerUsersCallingSystem)
 
-message("Average all unique users calling system per day: ",round(mean(weeksPerUser_usage$count[weeksPerUser_usage$action == "callingSystem"]),2),"; sd: ",round(sd(weeksPerUser_usage$count[weeksPerUser_usage$action == "callingSystem"]),2))
-
-message("Average all unique users attempting questions per day: ",round(mean(weeksPerUser_usage$count[weeksPerUser_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(weeksPerUser_usage$count[weeksPerUser_usage$action == "attemptingQuestions"]),2))
+message(
+  paste0("Average all unique users calling system per day: ",round(mean(weeksPerUser_usage$count[weeksPerUser_usage$action == "callingSystem"]),2),"; sd: ",round(sd(weeksPerUser_usage$count[weeksPerUser_usage$action == "callingSystem"]),2)),"\n",
+  paste0("Average all unique users attempting questions per day: ",round(mean(weeksPerUser_usage$count[weeksPerUser_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(weeksPerUser_usage$count[weeksPerUser_usage$action == "attemptingQuestions"]),2))
+)
 
 ```
 
@@ -1619,9 +1725,10 @@ weeksPerUser_usage = rbind(weeksPerUsersAttemptingQuestions, weeksPerUsersCallin
 rm(weeksPerUsersAttemptingQuestions)
 rm(weeksPerUsersCallingSystem)
 
-message("Average unique child users calling system per day: ",round(mean(weeksPerUser_usage$count[weeksPerUser_usage$action == "callingSystem"]),2),"; sd: ",round(sd(weeksPerUser_usage$count[weeksPerUser_usage$action == "callingSystem"]),2))
-
-message("Average unique child users attempting questions per day: ",round(mean(weeksPerUser_usage$count[weeksPerUser_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(weeksPerUser_usage$count[weeksPerUser_usage$action == "attemptingQuestions"]),2))
+message(
+  paste0("Average unique child users calling system per day: ",round(mean(weeksPerUser_usage$count[weeksPerUser_usage$action == "callingSystem"]),2),"; sd: ",round(sd(weeksPerUser_usage$count[weeksPerUser_usage$action == "callingSystem"]),2)),"\n",
+  paste0("Average unique child users attempting questions per day: ",round(mean(weeksPerUser_usage$count[weeksPerUser_usage$action == "attemptingQuestions"]),2),"; sd: ",round(sd(weeksPerUser_usage$count[weeksPerUser_usage$action == "attemptingQuestions"]),2))
+)
 
 ```
 
@@ -1648,8 +1755,10 @@ daysPerUser_usage = daysPerUsersAttemptingQuestions %>%
   mutate(percentDaysAttemptedQuestions = daysAttemptedQuestions / daysCallingSystem) %>%
   filter(!is.na(daysCallingSystem))
 
-message("Average days called system per all users: ",round(mean(daysPerUser_usage$daysCallingSystem),2),"; sd: ",round(sd(daysPerUser_usage$daysCallingSystem),2))
-message("Average days attempted questions per all users: ",round(mean(daysPerUser_usage$daysAttemptedQuestions),2),"; sd: ",round(sd(daysPerUser_usage$daysAttemptedQuestions),2))
+message(
+  paste0("Average days called system per all users: ",round(mean(daysPerUser_usage$daysCallingSystem),2),"; sd: ",round(sd(daysPerUser_usage$daysCallingSystem),2)),"\n",
+  paste0("Average days attempted questions per all users: ",round(mean(daysPerUser_usage$daysAttemptedQuestions),2),"; sd: ",round(sd(daysPerUser_usage$daysAttemptedQuestions),2))
+)
 
 ```
 
@@ -1676,8 +1785,10 @@ daysPerUser_usage = daysPerUsersAttemptingQuestions %>%
   mutate(percentDaysAttemptedQuestions = daysAttemptedQuestions / daysCallingSystem) %>%
   filter(!is.na(daysCallingSystem))
 
-message("Average days called system per child users: ",round(mean(daysPerUser_usage$daysCallingSystem),2),"; sd: ",round(sd(daysPerUser_usage$daysCallingSystem),2))
-message("Average days attempted questions per child users: ",round(mean(daysPerUser_usage$daysAttemptedQuestions),2),"; sd: ",round(sd(daysPerUser_usage$daysAttemptedQuestions),2))
+message(
+  paste0("Average days called system per child users: ",round(mean(daysPerUser_usage$daysCallingSystem),2),"; sd: ",round(sd(daysPerUser_usage$daysCallingSystem),2)),"\n",
+  paste0("Average days attempted questions per child users: ",round(mean(daysPerUser_usage$daysAttemptedQuestions),2),"; sd: ",round(sd(daysPerUser_usage$daysAttemptedQuestions),2))
+)
 
 ```
 
@@ -2099,17 +2210,17 @@ interactionsData_parentAnalysis = interactionsData %>%
   left_join(interactionsData_flowMap, by = c("interactionDataValue_numberPressed")) %>%
   group_by(date, cdr.uniqueId) %>%
   #stop after this row to get the raw data before summary
-  fill(Flow, .direction = "down") %>%
+  fill(flow, .direction = "down") %>%
   ungroup() %>%
-  filter(!is.na(Flow))
+  filter(!is.na(flow))
   
 interactionsData_parentAnalysis_flowCount = interactionsData_parentAnalysis %>%
-  group_by(date, treccId_phoneId, cdr.uniqueId, Flow) %>%
+  group_by(date, treccId_phoneId, cdr.uniqueId, flow) %>%
   summarize(count = n()) %>%
   mutate(count = NULL) %>%
   #stop before %>% to get the user Role count per cdr id
   group_by(date, treccId_phoneId, cdr.uniqueId) %>%
-  summarize(n_usersFlow = n_distinct(Flow)) %>%
+  summarize(n_usersFlow = n_distinct(flow)) %>%
   filter(n_usersFlow != 1)
 
 interactionsData_parentAnalysis_node = interactionsData_parentAnalysis %>%
@@ -2292,7 +2403,7 @@ rm(attemptedQuestion_UAS)
 
 #count those who accessed child flow
 accessedAdult_interactions = interactionsData_parentAnalysis %>%
-  filter(Flow == "adult") %>%
+  filter(flow == "adult") %>%
   group_by(treccId_phoneId) %>%
   summarize(count = n()) %>%
   mutate(count = NULL,
@@ -2306,7 +2417,7 @@ treccUserData_adult_child[c("accessedAdultFlow_binary")][is.na(treccUserData_adu
 
 ##count hose who accessed adult flow
 accessedChild_interactions = interactionsData_parentAnalysis %>%
-  filter(Flow == "child") %>%
+  filter(flow == "child") %>%
   group_by(treccId_phoneId) %>%
   summarize(count = n()) %>%
   mutate(count = NULL,

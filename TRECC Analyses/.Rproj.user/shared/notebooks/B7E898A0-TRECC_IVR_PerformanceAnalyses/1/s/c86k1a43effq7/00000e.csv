@@ -1,5 +1,0 @@
-"0"," performanceFirstLessonToCurrent %>%"
-"0"," ggplot(aes(x = questionQuartileGroup, y = avgCorrectPercent)) +"
-"0","   geom_jitter(alpha = .2, width = .2) +"
-"0","   #stat_smooth(aes(group = usersToUnits.currentUnit)) +"
-"0","   facet_wrap(~ questionAndUnit_concat, ncol = 5)"

@@ -1,7 +1,0 @@
-"0","#original hist code from Ben"
-"0","#hist(CIVdata_filter.tokenid$presentations)"
-"0","tweight.mean <- round(mean(CIVdata_filter.tokenid$presentations),2)"
-"0","tweight.sd <- round(sd(CIVdata_filter.tokenid$presentations),2)"
-"0","# Low frequency tokens (code included for completeness, but commented out for now)"
-"0","# Spoiler, there aren't any (since the zero-frequency tokens don't get included)"
-"0","#CIVdata_filter.tokenid[CIVdata_filter.tokenid$presentations < tweight.mean-2*tweight.sd,]"

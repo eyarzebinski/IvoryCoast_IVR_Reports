@@ -20,7 +20,7 @@
 
 ####CHANGE THIS EACH TIME TO POINT TO THE RIGHT FILES####
 #set file date
-dataDate = "2019-05-22"
+dataDate = "2019-05-29"
 
 #bad ids are testing accounts or duplicates of valid numbers confirmed not to be used.
 badIds = c(1, 2, 3, 44, 45, 46, 51, 53, 54, 56, 57, 64, 66, 68, 69, 74, 105, 147, 148, 149, 150, 192, 193, 194, 196, 238, 239, 240, 988)
@@ -45,7 +45,7 @@ library(plotly)
 #store it somewhere else local on your machine and call it
 
 #conditional setwd
-ifelse((Sys.info()["sysname"] == "windows"),
+ifelse((Sys.info()["sysname"] == "Windows"),
        #set for windows
        setwd("D:/Ivory Coast/201901 Study/"),
        #set for mac
@@ -291,9 +291,9 @@ rm(treccUserData)
 #users 987 and 988 were accidentally given the same phone number, so they are excluded for now until it is resolved.
 UASdata <- as_tibble(UASdata) %>%
   filter(!users.id %in% badIds,
-         !sessions.mobile_number %in% testingNumbers,
-         users.id != 987,
-         users.id != 988
+         !sessions.mobile_number %in% testingNumbers
+         #users.id != 987,
+         #users.id != 988
   ) %>%
   rename(treccUserId = UAS.user_id) %>%
   mutate(treccUserId = as.numeric(treccUserId),
@@ -359,9 +359,9 @@ interactionsData = interactionsData %>%
   ungroup() %>%
   rename(treccUserId = interactions.user_id) %>%  #added in from below, does this work here?
   mutate(treccUserId = as.numeric(treccUserId)) %>%
-  filter(treccUserId != 987,
-         treccUserId != 988
-  ) %>%
+  #filter(treccUserId != 987,
+  #       treccUserId != 988
+  #) %>%
   left_join(treccUserData_adult_child_realCallers, by = c("treccUserId")) %>%  #added in from below, does this work here?
   mutate(CONCAT_question_treccStudyID_date_hour_minute_second = paste0(UAS.questionId,"_",treccId_phoneId,"_",date, "_", hourExtract,"_",minuteExtract,"_", secondExtract)) %>%
   group_by(treccUserId, 
@@ -859,16 +859,127 @@ cdr_callNumber = cdrData_userCalls %>%
 #merge call number into interactions
 interactionsData <- interactionsData %>%
   mutate(treccIDuniqueID = paste0(treccUserId, cdr.uniqueId)) %>%
-  left_join(cdr_callNumber, by = c("treccIDuniqueID"))
+  left_join(cdr_callNumber, by = c("treccIDuniqueID")) %>%
+  mutate(userEndDate = ifelse(village_school == "Ahouabo_1","2019-05-14",
+                              ifelse(village_school == "Ahouabo_2","2019-05-15",
+                                     ifelse(village_school == "Ananguie_1","2019-05-15",
+                                            ifelse(village_school == "Ananguie_2","2019-05-16",
+                                                   ifelse(village_school == "Becouefin_1","2019-05-24",
+                                                          ifelse(village_school == "Becouefin_3","2019-05-24",
+                                                                 ifelse(village_school == "Bouape_2","2019-05-25",
+                                                                        ifelse(village_school == "Bouape_3","2019-05-25",
+                                                                               ifelse(village_school == "Boudepe_1","2019-05-23",
+                                                                                      ifelse(village_school == "Diape_1","2019-05-22",
+                                                                                             ifelse(village_school == "Diape_4","2019-05-22",
+                                                                                                    ifelse(village_school == "Moape_2","2019-05-17",
+                                                                                                           ifelse(village_school == "Moape_4","2019-05-17",
+                                                                                                                  ifelse(village_school == "Affery_2","2019-05-21",
+                                                                                                                         ifelse(village_school == "Affery_Plateau 2","2019-05-20",
+                                                                                                                                ifelse(village_school == "Affery_Plateau 4","2019-05-20",
+                                                                                                                                       ifelse(village_school == "Affery_Plateau 5","2019-05-20", "CHECK")
+                                                                                                                                )
+                                                                                                                         )
+                                                                                                                  )
+                                                                                                           )
+                                                                                                    )
+                                                                                             )
+                                                                                      )
+                                                                               )
+                                                                        )
+                                                                 )
+                                                          )
+                                                   )
+                                            )
+                                     )
+                              )
+  )
+  ) %>%
+  filter(userEndDate != "CHECK")
+
+callDuration = cdrData_userCalls %>%
+  select(uniqueid,billsec) %>%
+  rename(cdr.uniqueId = uniqueid)
 
 #merge call number into UAS and filter out any tokens with a NULL value
 UASdata <- UASdata %>%
   mutate(treccIDuniqueID = paste0(treccUserId, cdr.uniqueId)) %>%
   left_join(cdr_callNumber, by = c("treccIDuniqueID")) %>%
-  filter(syllable_structure_token_a != "NULL")
-
+  filter(syllable_structure_token_a != "NULL") %>%
+  mutate(userEndDate = ifelse(village_school == "Ahouabo_1","2019-05-14",
+                              ifelse(village_school == "Ahouabo_2","2019-05-15",
+                                     ifelse(village_school == "Ananguie_1","2019-05-15",
+                                            ifelse(village_school == "Ananguie_2","2019-05-16",
+                                                   ifelse(village_school == "Becouefin_1","2019-05-24",
+                                                          ifelse(village_school == "Becouefin_3","2019-05-24",
+                                                                 ifelse(village_school == "Bouape_2","2019-05-25",
+                                                                        ifelse(village_school == "Bouape_3","2019-05-25",
+                                                                               ifelse(village_school == "Boudepe_1","2019-05-23",
+                                                                                      ifelse(village_school == "Diape_1","2019-05-22",
+                                                                                             ifelse(village_school == "Diape_4","2019-05-22",
+                                                                                                    ifelse(village_school == "Moape_2","2019-05-17",
+                                                                                                           ifelse(village_school == "Moape_4","2019-05-17",
+                                                                                                                  ifelse(village_school == "Affery_2","2019-05-21",
+                                                                                                                         ifelse(village_school == "Affery_Plateau 2","2019-05-20",
+                                                                                                                                ifelse(village_school == "Affery_Plateau 4","2019-05-20",
+                                                                                                                                       ifelse(village_school == "Affery_Plateau 5","2019-05-20", "CHECK")
+                                                                                                                                       )
+                                                                                                                                )
+                                                                                                                         )
+                                                                                                                  )
+                                                                                                           )
+                                                                                                    )
+                                                                                             )
+                                                                                      )
+                                                                               )
+                                                                        )
+                                                                 )
+                                                          )
+                                                   )
+                                            )
+                                     )
+                              )
+  ) %>%
+  filter(userEndDate != "CHECK") %>%
+  left_join(callDuration, by = c("cdr.uniqueId"))
+  
 cdrData_userCalls = cdrData_userCalls %>%
-  filter(!is.na(mobileNumberLong))
+  filter(!is.na(mobileNumberLong)) %>%
+  mutate(userEndDate = ifelse(village_school.y == "Ahouabo_1","2019-05-14",
+                              ifelse(village_school.y == "Ahouabo_2","2019-05-15",
+                                     ifelse(village_school.y == "Ananguie_1","2019-05-15",
+                                            ifelse(village_school.y == "Ananguie_2","2019-05-16",
+                                                   ifelse(village_school.y == "Becouefin_1","2019-05-24",
+                                                          ifelse(village_school.y == "Becouefin_3","2019-05-24",
+                                                                 ifelse(village_school.y == "Bouape_2","2019-05-25",
+                                                                        ifelse(village_school.y == "Bouape_3","2019-05-25",
+                                                                               ifelse(village_school.y == "Boudepe_1","2019-05-23",
+                                                                                      ifelse(village_school.y == "Diape_1","2019-05-22",
+                                                                                             ifelse(village_school.y == "Diape_4","2019-05-22",
+                                                                                                    ifelse(village_school.y == "Moape_2","2019-05-17",
+                                                                                                           ifelse(village_school.y == "Moape_4","2019-05-17",
+                                                                                                                  ifelse(village_school.y == "Affery_2","2019-05-21",
+                                                                                                                         ifelse(village_school.y == "Affery_Plateau 2","2019-05-20",
+                                                                                                                                ifelse(village_school.y == "Affery_Plateau 4","2019-05-20",
+                                                                                                                                       ifelse(village_school.y == "Affery_Plateau 5","2019-05-20", "CHECK")
+                                                                                                                                )
+                                                                                                                         )
+                                                                                                                  )
+                                                                                                           )
+                                                                                                    )
+                                                                                             )
+                                                                                      )
+                                                                               )
+                                                                        )
+                                                                 )
+                                                          )
+                                                   )
+                                            )
+                                     )
+                              )
+  )
+  ) %>%
+  filter(userEndDate != "CHECK")
+  
 
 ######################################################################################################
 #### Summarize multiple-attempts down into one row with First-attempt and Last-attempt accuracies ####
@@ -989,7 +1100,9 @@ UASdata.trialid <- UASdata.questionid %>%
 # # write processed data to csvs
 # # write.csv(cdr_all_userType, paste0("processed_cdrData_all_userType_",dataDate,".csv"),row.names = F)
 # write.csv(cdrData_autoGenerate, paste0("processed_cdrData_systemCalls_",dataDate,".csv"),row.names = F)
-# write.csv(cdrData_userCalls, paste0("processed_cdrData_userCalls_",dataDate,".csv"),row.names = F)
-# write.csv(interactionsData, paste0("processed_interactionsData_",dataDate,".csv"),row.names = F)
+write.csv(cdrData_userCalls, paste0("processed_cdrData_userCalls_",dataDate,".csv"),row.names = F)
+write.csv(interactionsData, paste0("processed_interactionsData_",dataDate,".csv"),row.names = F)
 # #write.csv(interactionsData_lessons, paste0("processed_interactionsData_lessons_",dataDate,".csv"),row.names = F)
-# write.csv(UASdata, paste0("processed_UASdata_",dataDate,".csv"),row.names = F)
+write.csv(UASdata, paste0("processed_UASdata_",dataDate,".csv"),row.names = F)
+
+#UASdata = read.csv(file = "processed_UASdata_2019-05-23.csv", stringsAsFactors = F)

@@ -282,18 +282,6 @@ Qcount_unit_questionType_current = Qcount_unit_questionType_all %>%
 ####This histogram indicates the overall engagement pattern of child users, with the total questions attempted across all units along the x axis, and the count of child users on the y axis. It appears that most child users are attempting only a few questions.
 ```{r, echo = F}
 
-# #code for Ben to check median splits. Run only by request from him, not daily.
-# sum = Qcount_unit_questionType_all %>%
-#   filter(userRole == "child") %>%
-#   ungroup() %>%
-#   group_by(treccId_phoneId, redcapId) %>%
-#   summarize(totalQuestions = sum(calc_questionsAttempted)) %>%
-#   ungroup() %>%
-#   mutate(aboveMedian = ifelse(totalQuestions >= median(totalQuestions), 1, 0))
-# 
-# write.csv(sum,"childUsers_all_forBen_20190509.csv", row.names = F)
-
-
 Qcount_unit_questionType_all_graph = Qcount_unit_questionType_all %>%
   filter(userRole == "child") %>%                       
   group_by(treccId_phoneId) %>%
@@ -693,48 +681,48 @@ message(
 
 ```
 
-####Affery_unknown
-```{r, echo = F, fig.height = 4.2, fig.width = 7}
-interactionsCount_day_FILTER = interactionsCount_day %>%
-  filter(village_school == "Affery_unknown")
+<!-- ####Affery_unknown -->
+<!-- ```{r, echo = F, fig.height = 4.2, fig.width = 7} -->
+<!-- interactionsCount_day_FILTER = interactionsCount_day %>% -->
+<!--   filter(village_school == "Affery_unknown") -->
 
-schoolName = unique(interactionsCount_day_FILTER$village_school)
-villageName = unique(interactionsCount_day_FILTER$village)
+<!-- schoolName = unique(interactionsCount_day_FILTER$village_school) -->
+<!-- villageName = unique(interactionsCount_day_FILTER$village) -->
 
-interactionsCount_day_FILTER %>%
-    #filter(village_school == "Affery_2") %>%
-    ggplot(aes(x = date,
-               ##y call below to sort y axis by order of first call
-               #y = reorder(studyPhoneId, date, min),
-               #y call below to sort y axis by order of phone id
-               y = studyPhoneId,
-               group = studyPhoneId, 
-               shape = userRole,
-               fill = interactionType
-               )) +
-    geom_path() +
-    ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) +
-    geom_jitter(height = 0.25, width = 0.25) +
-    #scale_shape_manual(values=c(24, 21))+
-    scale_shape_manual(values=shapes) +
-    scale_fill_manual(values=colors) +
-    scale_x_date(date_breaks = "2 weeks", 
-                 date_labels = "%b %d",
-                 limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +    
-    #geom_jitter(height = 0.2) +
-    labs(y = "Study Phone Id", shape = "User", fill = "Flow") +
-    guides(fill=guide_legend(override.aes=list(shape=21)))
+<!-- interactionsCount_day_FILTER %>% -->
+<!--     #filter(village_school == "Affery_2") %>% -->
+<!--     ggplot(aes(x = date, -->
+<!--                ##y call below to sort y axis by order of first call -->
+<!--                #y = reorder(studyPhoneId, date, min), -->
+<!--                #y call below to sort y axis by order of phone id -->
+<!--                y = studyPhoneId, -->
+<!--                group = studyPhoneId,  -->
+<!--                shape = userRole, -->
+<!--                fill = interactionType -->
+<!--                )) + -->
+<!--     geom_path() + -->
+<!--     ggtitle(paste("All users in ", unique(interactionsCount_day_FILTER$village_school))) + -->
+<!--     geom_jitter(height = 0.25, width = 0.25) + -->
+<!--     #scale_shape_manual(values=c(24, 21))+ -->
+<!--     scale_shape_manual(values=shapes) + -->
+<!--     scale_fill_manual(values=colors) + -->
+<!--     scale_x_date(date_breaks = "2 weeks",  -->
+<!--                  date_labels = "%b %d", -->
+<!--                  limits = c(as.Date('2019-02-08'), Sys.Date()+1+1)) +     -->
+<!--     #geom_jitter(height = 0.2) + -->
+<!--     labs(y = "Study Phone Id", shape = "User", fill = "Flow") + -->
+<!--     guides(fill=guide_legend(override.aes=list(shape=21))) -->
 
-message(
-  paste0(unique(interactionsCount_day_FILTER$village_school)),"\n",
-  paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n",
-    paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n",
-  paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n",
-  paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n",
-  paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2))
-  )
+<!-- message( -->
+<!--   paste0(unique(interactionsCount_day_FILTER$village_school)),"\n", -->
+<!--   paste0("Total children who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])),"\n", -->
+<!--     paste0("Total adults who have called: ", n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])),"\n", -->
+<!--   paste0("Total children in experimental condition: ", nrow(subset(childUsers, village_school==schoolName))),"\n", -->
+<!--   paste0("Percent of children calling: ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "child"])/nrow(subset(childUsers, village_school==schoolName)),2)),"\n", -->
+<!--   paste0("Percent of adults calling (out of total children): ", round(n_distinct(interactionsCount_day_FILTER$studyPhoneId[interactionsCount_day_FILTER$userRole == "adult"])/nrow(subset(childUsers, village_school==schoolName)),2)) -->
+<!--   ) -->
 
-```
+<!-- ``` -->
 
 ####NOT CALLED
 ```{r, echo = F}
@@ -3044,4 +3032,15 @@ datatable(
 sessionInfo()
 ```
 
-
+```{r, echo = F}
+# #code for Ben to check median splits. Run only by request from him, not daily.
+# benOutput = UASdata %>%
+#   filter(userRole == "child") %>%
+#   ungroup() %>%
+#   group_by(treccId_phoneId, redcapId) %>%
+#   summarize(totalQuestions = n_distinct(cmsQuestions.id)) %>%
+#   ungroup() %>%
+#   mutate(aboveMedian = ifelse(totalQuestions >= median(totalQuestions), 1, 0))
+# 
+# write.csv(benOutput,"childUsers_allQuestions_forBen_20190604.csv", row.names = F)
+```

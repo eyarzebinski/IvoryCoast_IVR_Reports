@@ -1,7 +1,0 @@
-"0","tokenDistribution_A = CIVdata_filter %>%"
-"0","  group_by(cmsQuestions.token_a_id, phonetics_auditory_token_a, spelling_visual_token_a) %>%"
-"0","  summarize(nStudents = n_distinct(studentStudyId),"
-"0","            uniqueQuestionTypesWithTokenA = n_distinct(cmsQuestions.id),"
-"0","            countAttempts = sum(inMichelsList),"
-"0","            avgAttemptCorrectness = round(mean(UAS.correct),2))"
-"0","datatable(tokenDistribution_A)"

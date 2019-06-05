@@ -1,2 +1,0 @@
-"0","# High frequency tokens"
-"0","datatable(CIVdata_filter.tokenid[CIVdata_filter.tokenid$presentations > tweight.mean+2*tweight.sd,])"

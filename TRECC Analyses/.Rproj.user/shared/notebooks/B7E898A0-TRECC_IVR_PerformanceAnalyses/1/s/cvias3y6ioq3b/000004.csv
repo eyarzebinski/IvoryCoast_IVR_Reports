@@ -1,8 +1,0 @@
-"0","tokenDistribution_distractorBC = CIVdata_filter %>%"
-"0","  ungroup() %>%"
-"0","  group_by(cmsQuestions.distractor_tokens_V02, cmsQuestions.distractor_tokens_IPA, cmsQuestions.distractor_tokens_spelling) %>%"
-"0","  summarize(nStudents = n_distinct(studentStudyId),"
-"0","            uniqueQuestionTypesWithTokenPair = n_distinct(cmsQuestions.id),"
-"0","            countAttempts = sum(inMichelsList),"
-"0","            avgAttemptCorrectness = round(mean(UAS.correct),2))"
-"0","datatable(tokenDistribution_distractorBC)"

@@ -1,6 +1,0 @@
-"0","message(paste(""Currently across all units:"",n_distinct(questionList$cmsQuestions.question_text),""unique questions.""))"
-"2","Currently across all units: 1853 unique questions.
-"
-"0","message(paste(""There are"",nrow(questionList),""rows in the Question List above.""))"
-"2","There are 1883 rows in the Question List above.
-"
